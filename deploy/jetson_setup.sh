@@ -43,8 +43,13 @@ fi
 
 echo "==> llama.cpp / llama-server"
 if ! command -v llama-server &>/dev/null; then
-  echo "Install llama.cpp with CUDA for Jetson:"
-  echo "  https://www.jetson-ai-lab.com/models/nemotron3-nano-4b/"
+  read -r -p "Build llama-server now? (~15-30 min) [y/N] " llama_ans
+  if [[ "${llama_ans,,}" == "y" ]]; then
+    bash "$ARIF_ROOT/scripts/install-llama-server.sh"
+  else
+    echo "Install later: bash scripts/install-llama-server.sh"
+    echo "Guide: https://www.jetson-ai-lab.com/models/nemotron3-nano-4b/"
+  fi
 fi
 
 echo "==> Performance mode"

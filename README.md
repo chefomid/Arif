@@ -23,7 +23,14 @@ React UI  ←WebSocket/REST→  FastAPI backend  →  llama-server (Nemotron)
 ### 1. Prerequisites
 
 - JetPack 6.x on Orin Nano Super
-- `llama-server` built with CUDA ([Jetson AI Lab – Nemotron3 Nano 4B](https://www.jetson-ai-lab.com/models/nemotron3-nano-4b/))
+- `llama-server` built with CUDA — install once on the Jetson:
+
+```bash
+cd ~/Arif
+bash scripts/install-llama-server.sh
+```
+
+([Jetson AI Lab – Nemotron3 Nano 4B](https://www.jetson-ai-lab.com/models/nemotron3-nano-4b/))
 - USB mic + ELP 1200p stereo camera
 
 ### 2. Setup

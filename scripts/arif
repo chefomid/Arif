@@ -32,7 +32,11 @@ find_llama_server() {
     command -v llama-server
     return 0
   fi
-  for p in /usr/local/bin/llama-server /opt/llama.cpp/llama-server; do
+  for p in \
+    /usr/local/bin/llama-server \
+    "$HOME/llama.cpp/build/bin/llama-server" \
+    /opt/llama.cpp/build/bin/llama-server \
+    /opt/llama.cpp/llama-server; do
     if [[ -x "$p" ]]; then
       echo "$p"
       return 0
@@ -132,7 +136,10 @@ if llm_ready; then
   log "llama-server already responding on port ${LLM_PORT} — reusing it."
 else
   LLAMA_BIN="$(find_llama_server)" || {
-    err "llama-server not found. Install from Jetson AI Lab Nemotron guide."
+    err "llama-server not found."
+    err "Install it on the Jetson (one time, ~15–30 min):"
+    err "  cd ~/Arif && bash scripts/install-llama-server.sh"
+    err "Guide: https://www.jetson-ai-lab.com/models/nemotron3-nano-4b/"
     exit 1
   }
   if port_open "$LLM_PORT"; then
