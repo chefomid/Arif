@@ -1,0 +1,91 @@
+.device-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.25rem;
+  overflow: hidden;
+  outline: none;
+}
+
+.device-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px dashed var(--ps-border);
+  padding-bottom: 0.5rem;
+}
+
+.device-header h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 400;
+  color: var(--ps-yellow);
+}
+
+.device-hint {
+  font-size: 0.75rem;
+  color: var(--ps-dim);
+}
+
+.device-current {
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.device-current .label {
+  color: var(--ps-magenta);
+}
+
+.device-current p {
+  margin: 0.25rem 0;
+  color: var(--ps-cyan);
+}
+
+.device-status {
+  color: var(--ps-dim);
+  font-size: 0.8rem;
+}
+
+.device-error {
+  color: var(--ps-red);
+  font-size: 0.8rem;
+}
+
+.device-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.device-row {
+  padding: 0.4rem 0.6rem;
+  margin-bottom: 2px;
+  border: 1px solid transparent;
+  color: var(--ps-green);
+  font-size: 0.85rem;
+  cursor: default;
+}
+
+.device-row.focused {
+  border-color: var(--ps-cyan);
+  background: rgba(58, 150, 221, 0.1);
+  color: var(--ps-yellow);
+}
+
+.device-row.selected {
+  color: var(--ps-cyan);
+}
+
+.device-row .sel-tag {
+  color: var(--ps-bright-green);
+}
+
+.device-empty {
+  color: var(--ps-dim);
+  font-style: italic;
+  padding: 0.5rem;
+}

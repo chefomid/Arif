@@ -1,0 +1,44 @@
+.help-panel {
+  flex: 1;
+  padding: 1rem 1.25rem;
+  overflow-y: auto;
+  outline: none;
+}
+
+.help-panel h2 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  color: var(--ps-yellow);
+  font-weight: 400;
+}
+
+.help-note {
+  color: var(--ps-dim);
+  font-size: 0.8rem;
+  margin: 0 0 1rem;
+}
+
+.help-table {
+  border-collapse: collapse;
+  width: 100%;
+  max-width: 32rem;
+}
+
+.help-key {
+  color: var(--ps-magenta);
+  padding: 0.35rem 1rem 0.35rem 0;
+  white-space: nowrap;
+  vertical-align: top;
+  width: 8rem;
+}
+
+.help-desc {
+  color: var(--ps-green);
+  padding: 0.35rem 0;
+}
+
+.help-footer {
+  margin-top: 1.5rem;
+  color: var(--ps-dim);
+  font-size: 0.75rem;
+}

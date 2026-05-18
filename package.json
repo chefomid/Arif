@@ -1,0 +1,17 @@
+{
+  "name": "arif",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Multimodal AI chatbot for Jetson",
+  "scripts": {
+    "dev:backend": "node scripts/dev-backend.js",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "dev:all": "concurrently -k -n backend,frontend -c green,cyan \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "build": "npm run build --prefix frontend",
+    "setup": "node scripts/setup.js",
+    "postinstall": "node scripts/ensure-venv.js"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

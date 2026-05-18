@@ -1,0 +1,122 @@
+.chat-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--ps-bg);
+}
+
+.terminal-banner {
+  padding: 0.5rem 1rem;
+  border-bottom: 1px dashed var(--ps-border);
+  font-size: 0.75rem;
+}
+
+.banner-comment {
+  color: var(--ps-dim);
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.message {
+  width: 100%;
+  padding: 0.35rem 0;
+  line-height: 1.45;
+  text-align: left;
+  align-self: flex-start;
+}
+
+.message p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.message.system p {
+  color: var(--ps-dim);
+  font-style: italic;
+}
+
+.message.user p {
+  color: var(--ps-cyan);
+}
+
+.message.assistant p {
+  color: var(--ps-orange);
+}
+
+.message.partial p {
+  color: var(--ps-cyan);
+  font-style: italic;
+  opacity: 0.85;
+}
+
+.message.partial.recording p {
+  animation: rec-blink 1s step-end infinite;
+}
+
+@keyframes rec-blink {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.input-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--ps-border);
+  background: #0d0d0d;
+}
+
+.input-row textarea {
+  flex: 1;
+  resize: none;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--ps-border);
+  background: var(--ps-bg);
+  color: var(--ps-green);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.input-row textarea:focus {
+  border-color: var(--ps-cyan);
+  box-shadow: 0 0 0 1px rgba(58, 150, 221, 0.3);
+}
+
+.input-row textarea::placeholder {
+  color: var(--ps-dim);
+}
+
+.input-row button {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--ps-bright-green);
+  background: transparent;
+  color: var(--ps-bright-green);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.input-row button:hover:not(:disabled) {
+  background: rgba(22, 198, 12, 0.12);
+  color: var(--ps-yellow);
+  border-color: var(--ps-yellow);
+}
+
+.input-row button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  border-color: var(--ps-dim);
+  color: var(--ps-dim);
+}

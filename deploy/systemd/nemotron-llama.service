@@ -1,0 +1,19 @@
+[Unit]
+Description=Nemotron3 Nano 4B via llama.cpp server
+After=network.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/home/%i/Arif/models
+ExecStart=/usr/local/bin/llama-server \
+  -m /home/%i/Arif/models/NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --n-gpu-layers 999 \
+  --alias nemotron
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
