@@ -53,10 +53,19 @@ if command -v nvpmodel &>/dev/null; then
   sudo jetson_clocks 2>/dev/null || true
 fi
 
+chmod +x "$ARIF_ROOT/scripts/arif"
+if [ -w /usr/local/bin ]; then
+  ln -sf "$ARIF_ROOT/scripts/arif" /usr/local/bin/arif 2>/dev/null || \
+    sudo ln -sf "$ARIF_ROOT/scripts/arif" /usr/local/bin/arif
+  echo "Installed: arif -> /usr/local/bin/arif"
+else
+  echo "Add to PATH: export PATH=\"$ARIF_ROOT/scripts:\$PATH\""
+fi
+
 echo ""
 echo "Setup complete."
-echo "  1. Start Nemotron:  llama-server -m models/NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf --host 0.0.0.0 --port 8080 --n-gpu-layers 999 --alias nemotron"
-echo "  2. Start backend:   cd backend && ../.venv/bin/python run.py"
-echo "  3. Open UI:         http://<jetson-ip>:8000  (or npm run dev in frontend/)"
+echo "  Start everything:  arif"
+echo "  Stop:              arif stop"
+echo "  Open UI:           http://<jetson-ip>:8000"
 echo ""
 echo "Optional systemd units in deploy/systemd/ (edit paths/user first)."

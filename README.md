@@ -43,19 +43,32 @@ bash models/download_models.sh
 
 Set `YOLO_MODEL=models/yolo11n.engine` in `.env` after export.
 
-### 4. Run Nemotron (separate terminal)
+### 4. Run everything (one command)
+
+```bash
+arif
+```
+
+This starts **llama-server** (Nemotron) and the **backend**, then prints the UI URL. Stop with `Ctrl+C` or `arif stop`.
+
+Install the `arif` command (if missing):
+
+```bash
+chmod +x scripts/arif
+sudo ln -sf ~/Arif/scripts/arif /usr/local/bin/arif
+```
+
+Or after setup: `bash deploy/jetson_setup.sh` links it automatically.
+
+**Manual start** (two terminals):
 
 ```bash
 llama-server -m models/NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf \
   --host 0.0.0.0 --port 8080 --n-gpu-layers 999 --alias nemotron
 ```
 
-### 5. Run backend
-
 ```bash
-source .venv/bin/activate
-cd backend
-python run.py
+source .venv/bin/activate && cd backend && python run.py
 ```
 
 Open `http://<jetson-ip>:8000` (production) or run `npm run dev` in `frontend/` for development.

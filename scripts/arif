@@ -1,0 +1,171 @@
+#!/usr/bin/env bash
+# Start Arif: llama-server (Nemotron) + FastAPI backend in one command.
+set -euo pipefail
+
+ARIF_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ARIF_ROOT"
+
+MODEL="${ARIF_MODEL:-models/NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf}"
+LLM_HOST="${LLM_HOST:-0.0.0.0}"
+LLM_PORT="${LLM_PORT:-8080}"
+ARIF_PORT="${ARIF_PORT:-8000}"
+LLM_GPU_LAYERS="${LLM_GPU_LAYERS:-999}"
+LLM_ALIAS="${LLM_ALIAS:-nemotron}"
+
+LLAMA_PID=""
+STARTED_LLAMA=0
+
+log() { printf '\033[1;36m[arif]\033[0m %s\n' "$*"; }
+err() { printf '\033[1;31m[arif]\033[0m %s\n' "$*" >&2; }
+
+cleanup() {
+  if [[ "$STARTED_LLAMA" -eq 1 && -n "$LLAMA_PID" ]]; then
+    log "Stopping llama-server (pid $LLAMA_PID)..."
+    kill "$LLAMA_PID" 2>/dev/null || true
+    wait "$LLAMA_PID" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT INT TERM
+
+find_llama_server() {
+  if command -v llama-server &>/dev/null; then
+    command -v llama-server
+    return 0
+  fi
+  for p in /usr/local/bin/llama-server /opt/llama.cpp/llama-server; do
+    if [[ -x "$p" ]]; then
+      echo "$p"
+      return 0
+    fi
+  done
+  return 1
+}
+
+port_open() {
+  local port=$1
+  if command -v ss &>/dev/null; then
+    ss -ltn 2>/dev/null | grep -q ":${port} "
+  elif command -v nc &>/dev/null; then
+    nc -z 127.0.0.1 "$port" 2>/dev/null
+  else
+    timeout 1 bash -c "echo >/dev/tcp/127.0.0.1/${port}" 2>/dev/null
+  fi
+}
+
+llm_ready() {
+  curl -sf "http://127.0.0.1:${LLM_PORT}/health" >/dev/null 2>&1 \
+    || curl -sf "http://127.0.0.1:${LLM_PORT}/v1/models" >/dev/null 2>&1
+}
+
+wait_for_llm() {
+  local i
+  for i in $(seq 1 90); do
+    if llm_ready; then
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+
+show_urls() {
+  local ip
+  ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  log "UI:  http://127.0.0.1:${ARIF_PORT}"
+  if [[ -n "${ip:-}" ]]; then
+    log "LAN: http://${ip}:${ARIF_PORT}"
+  fi
+  log "Press Ctrl+C to stop."
+}
+
+cmd_stop() {
+  local killed=0
+  if port_open "$LLM_PORT"; then
+    pkill -f "llama-server.*${LLM_PORT}" 2>/dev/null && killed=1 || true
+  fi
+  if port_open "$ARIF_PORT"; then
+    pkill -f "python.*run.py" 2>/dev/null && killed=1 || true
+  fi
+  if [[ "$killed" -eq 1 ]]; then
+    log "Stopped Arif / llama-server processes."
+  else
+    log "Nothing running on ports ${LLM_PORT} / ${ARIF_PORT}."
+  fi
+  trap - EXIT INT TERM
+  exit 0
+}
+
+case "${1:-start}" in
+  stop)
+    cmd_stop
+    ;;
+  start|"")
+    ;;
+  *)
+    err "Usage: arif [start|stop]"
+    exit 1
+    ;;
+esac
+
+if [[ ! -f "$ARIF_ROOT/$MODEL" ]]; then
+  err "Model not found: $ARIF_ROOT/$MODEL"
+  err "Run: bash models/download_models.sh"
+  exit 1
+fi
+
+if [[ ! -f "$ARIF_ROOT/.venv/bin/python" ]]; then
+  err "Python venv missing. Run: bash deploy/jetson_setup.sh"
+  exit 1
+fi
+
+if [[ ! -f "$ARIF_ROOT/.env" ]]; then
+  cp "$ARIF_ROOT/.env.example" "$ARIF_ROOT/.env"
+  log "Created .env from .env.example"
+fi
+
+if [[ ! -f "$ARIF_ROOT/frontend/dist/index.html" ]]; then
+  log "WARN: frontend/dist missing — run jetson_setup.sh or: cd frontend && npm install && npm run build"
+fi
+
+# --- llama-server ---
+if llm_ready; then
+  log "llama-server already responding on port ${LLM_PORT} — reusing it."
+else
+  LLAMA_BIN="$(find_llama_server)" || {
+    err "llama-server not found. Install from Jetson AI Lab Nemotron guide."
+    exit 1
+  }
+  if port_open "$LLM_PORT"; then
+    err "Port ${LLM_PORT} is in use but llama-server is not healthy yet. Stop the other process or run: arif stop"
+    exit 1
+  fi
+  log "Starting Nemotron (llama-server)..."
+  "$LLAMA_BIN" \
+    -m "$ARIF_ROOT/$MODEL" \
+    --host "$LLM_HOST" \
+    --port "$LLM_PORT" \
+    --n-gpu-layers "$LLM_GPU_LAYERS" \
+    --alias "$LLM_ALIAS" &
+  LLAMA_PID=$!
+  STARTED_LLAMA=1
+  log "Waiting for llama-server (pid $LLAMA_PID)..."
+  if ! wait_for_llm; then
+    err "llama-server did not become ready on port ${LLM_PORT}."
+    exit 1
+  fi
+  log "llama-server ready."
+fi
+
+# --- backend ---
+if port_open "$ARIF_PORT"; then
+  err "Port ${ARIF_PORT} already in use. Run: arif stop"
+  exit 1
+fi
+
+log "Starting Arif backend..."
+show_urls
+
+# Don't kill llama on backend exit if user only wanted backend crash to exit all - trap handles it
+source "$ARIF_ROOT/.venv/bin/activate"
+cd "$ARIF_ROOT/backend"
+exec python run.py
