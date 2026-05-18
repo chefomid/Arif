@@ -9,6 +9,7 @@
     "dev:all": "concurrently -k -n backend,frontend -c green,cyan \"npm run dev:backend\" \"npm run dev:frontend\"",
     "build": "npm run build --prefix frontend",
     "setup": "node scripts/setup.js",
+    "start": "bash scripts/arif",
     "postinstall": "node scripts/ensure-venv.js"
   },
   "devDependencies": {

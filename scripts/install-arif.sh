@@ -1,44 +1,64 @@
 #!/usr/bin/env bash
-# Install the `arif` command onto PATH (/usr/local/bin or ~/bin).
+# Install the `arif` command onto PATH (~/bin + /usr/local/bin).
 set -euo pipefail
 
 ARIF_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARIF_BIN="$ARIF_ROOT/scripts/arif"
+PATH_MARKER='# arif launcher'
+PATH_LINE='export PATH="$HOME/bin:/usr/local/bin:$PATH"'
 
 chmod +x "$ARIF_BIN"
+[[ -f "$ARIF_ROOT/arif" ]] && chmod +x "$ARIF_ROOT/arif"
 
-install_to() {
-  local dest_dir=$1
-  mkdir -p "$dest_dir"
-  ln -sf "$ARIF_BIN" "$dest_dir/arif"
-  echo "Linked: $dest_dir/arif -> $ARIF_BIN"
-}
+mkdir -p "$HOME/bin"
+ln -sf "$ARIF_BIN" "$HOME/bin/arif"
+echo "Linked: $HOME/bin/arif -> $ARIF_BIN"
 
 if [[ -d /usr/local/bin ]]; then
-  if install_to /usr/local/bin 2>/dev/null; then
-    :
-  else
-    echo "Need sudo to install to /usr/local/bin..."
-    sudo mkdir -p /usr/local/bin
-    sudo ln -sf "$ARIF_BIN" /usr/local/bin/arif
+  if sudo ln -sf "$ARIF_BIN" /usr/local/bin/arif 2>/dev/null; then
     echo "Linked: /usr/local/bin/arif -> $ARIF_BIN"
-  fi
-else
-  install_to "$HOME/bin"
-  if ! grep -q 'export PATH="$HOME/bin:$PATH"' "$HOME/.bashrc" 2>/dev/null; then
-    echo 'export PATH="$HOME/bin:$PATH"' >>"$HOME/.bashrc"
-    echo 'Added $HOME/bin to PATH in ~/.bashrc (run: source ~/.bashrc)'
+  else
+    echo "WARN: could not link /usr/local/bin/arif (sudo failed) — using ~/bin only"
   fi
 fi
 
+add_path_to_file() {
+  local f=$1
+  [[ -f "$f" ]] || touch "$f"
+  if grep -qF "$PATH_MARKER" "$f" 2>/dev/null; then
+    return 0
+  fi
+  {
+    echo ""
+    echo "$PATH_MARKER"
+    echo "$PATH_LINE"
+    echo "export ARIF_ROOT=\"$ARIF_ROOT\""
+  } >>"$f"
+  echo "Updated: $f"
+}
+
+add_path_to_file "$HOME/.bashrc"
+add_path_to_file "$HOME/.profile"
+
+if [[ -w /etc/profile.d ]]; then
+  printf '%s\n%s\nexport ARIF_ROOT="%s"\n' "$PATH_MARKER" "$PATH_LINE" "$ARIF_ROOT" \
+    | sudo tee /etc/profile.d/arif.sh >/dev/null && echo "Updated: /etc/profile.d/arif.sh"
+fi
+
+export PATH="$HOME/bin:/usr/local/bin:$PATH"
+
+echo ""
 if command -v arif &>/dev/null; then
   echo "OK: $(command -v arif)"
-  echo "Run: arif"
+  echo ""
+  echo "Start Arif now:"
+  echo "  arif"
 else
-  echo "Install done. Open a new terminal, or run:"
+  echo "Install finished but 'arif' not visible in this shell yet."
+  echo "Run:"
   echo "  source ~/.bashrc"
   echo "  arif"
   echo ""
-  echo "Or run directly without installing:"
+  echo "Or without installing:"
   echo "  bash $ARIF_BIN"
 fi

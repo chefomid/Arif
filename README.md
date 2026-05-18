@@ -74,14 +74,19 @@ Install the `arif` command (if you get `command not found`):
 cd ~/Arif
 git pull
 bash scripts/install-arif.sh
-source ~/.bashrc   # if it added ~/bin to PATH
+source ~/.bashrc
+hash -r
 arif
 ```
 
-Or run without installing:
+**Always works** (no PATH install needed):
 
 ```bash
 bash ~/Arif/scripts/arif
+# or
+cd ~/Arif && ./arif
+# or
+cd ~/Arif && npm start
 ```
 
 Or after setup: `bash deploy/jetson_setup.sh` links it automatically.

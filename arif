@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Wrapper so you can run: ./arif  or  bash ~/Arif/arif
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec bash "$ROOT/scripts/arif" "$@"
