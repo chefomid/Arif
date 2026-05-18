@@ -23,6 +23,16 @@ React UI  ←WebSocket/REST→  FastAPI backend  →  llama-server (Nemotron)
 ### 1. Prerequisites
 
 - JetPack 6.x on Orin Nano Super
+
+**CUDA / JetPack** (on the Jetson, if `nvcc` is missing):
+
+```bash
+cd ~/Arif
+bash scripts/install-jetpack-cuda.sh        # full dev stack
+# or: bash scripts/install-jetpack-cuda.sh minimal   # nvcc only, smaller
+```
+
+Fresh device? Flash the [JetPack SD card image](https://developer.nvidia.com/embedded/jetpack) first, or follow the [Orin Nano JP6 initial setup](https://www.jetson-ai-lab.com/initial_setup_jon.html).
 - `llama-server` built with CUDA — install once on the Jetson:
 
 ```bash

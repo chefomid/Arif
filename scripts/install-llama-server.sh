@@ -12,7 +12,8 @@ log() { printf '\033[1;36m[llama]\033[0m %s\n' "$*"; }
 err() { printf '\033[1;31m[llama]\033[0m %s\n' "$*" >&2; }
 
 if ! command -v nvcc &>/dev/null; then
-  err "nvcc not found. Install JetPack / CUDA toolkit first."
+  err "nvcc not found. Install JetPack CUDA first:"
+  err "  bash scripts/install-jetpack-cuda.sh"
   exit 1
 fi
 

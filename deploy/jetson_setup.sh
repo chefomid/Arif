@@ -5,6 +5,15 @@ set -euo pipefail
 ARIF_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ARIF_ROOT"
 
+echo "==> CUDA / JetPack (if nvcc missing)"
+if ! command -v nvcc &>/dev/null; then
+  read -r -p "Install JetPack CUDA via apt? [Y/n] " cuda_ans
+  if [[ "${cuda_ans,,}" != "n" ]]; then
+    bash "$ARIF_ROOT/scripts/install-jetpack-cuda.sh" minimal || \
+      bash "$ARIF_ROOT/scripts/install-jetpack-cuda.sh" dev || true
+  fi
+fi
+
 echo "==> System packages"
 sudo apt-get update
 sudo apt-get install -y \
