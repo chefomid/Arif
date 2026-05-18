@@ -11,7 +11,7 @@ if [ ! -f "NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf" ]; then
   python3 - <<'PY'
 from huggingface_hub import hf_hub_download
 path = hf_hub_download(
-    repo_id="nvidia/NVIDIA-Nemotron3-Nano-4B",
+    repo_id="nvidia/NVIDIA-Nemotron-3-Nano-4B-GGUF",
     filename="NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf",
     local_dir=".",
 )
