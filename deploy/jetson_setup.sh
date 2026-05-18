@@ -53,14 +53,7 @@ if command -v nvpmodel &>/dev/null; then
   sudo jetson_clocks 2>/dev/null || true
 fi
 
-chmod +x "$ARIF_ROOT/scripts/arif"
-if [ -w /usr/local/bin ]; then
-  ln -sf "$ARIF_ROOT/scripts/arif" /usr/local/bin/arif 2>/dev/null || \
-    sudo ln -sf "$ARIF_ROOT/scripts/arif" /usr/local/bin/arif
-  echo "Installed: arif -> /usr/local/bin/arif"
-else
-  echo "Add to PATH: export PATH=\"$ARIF_ROOT/scripts:\$PATH\""
-fi
+bash "$ARIF_ROOT/scripts/install-arif.sh" || true
 
 echo ""
 echo "Setup complete."

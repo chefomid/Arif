@@ -51,11 +51,20 @@ arif
 
 This starts **llama-server** (Nemotron) and the **backend**, then prints the UI URL. Stop with `Ctrl+C` or `arif stop`.
 
-Install the `arif` command (if missing):
+Install the `arif` command (if you get `command not found`):
 
 ```bash
-chmod +x scripts/arif
-sudo ln -sf ~/Arif/scripts/arif /usr/local/bin/arif
+cd ~/Arif
+git pull
+bash scripts/install-arif.sh
+source ~/.bashrc   # if it added ~/bin to PATH
+arif
+```
+
+Or run without installing:
+
+```bash
+bash ~/Arif/scripts/arif
 ```
 
 Or after setup: `bash deploy/jetson_setup.sh` links it automatically.
