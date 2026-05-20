@@ -1,14 +1,13 @@
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from app.api import chat, devices, health, vision
-from app.config import ROOT_DIR, get_settings
-from app.ws.gateway import router as ws_router, setup_vision_broadcast
+from app.config import get_settings
+from app.ui.setup import register_ui
+from app.ws.gateway import init_bridge
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    setup_vision_broadcast()
+    init_bridge()
     from app.services.device_manager import device_manager
 
     device_manager.auto_select()
@@ -46,21 +45,15 @@ def create_app() -> FastAPI:
     app.include_router(chat.router, prefix="/api")
     app.include_router(vision.router, prefix="/api")
     app.include_router(devices.router, prefix="/api")
+    from app.ws.gateway import router as ws_router
+
     app.include_router(ws_router)
 
-    @app.get("/")
-    async def root():
-        from fastapi.responses import FileResponse
+    register_ui()
 
-        index = ROOT_DIR / "frontend" / "dist" / "index.html"
-        if index.exists():
-            return FileResponse(index)
-        return {"message": "Arif API – build frontend with: cd frontend && npm run build"}
+    from nicegui import ui
 
-    frontend_dist = ROOT_DIR / "frontend" / "dist"
-    assets_dir = frontend_dist / "assets"
-    if assets_dir.exists():
-        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+    ui.run_with(app, title="Arif", dark=True)
 
     return app
 

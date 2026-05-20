@@ -75,7 +75,9 @@ class LLMClient:
 
     async def health_check(self) -> bool:
         try:
-            await self._client.models.list()
+            import asyncio
+
+            await asyncio.wait_for(self._client.models.list(), timeout=3.0)
             return True
         except Exception:
             return False

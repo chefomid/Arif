@@ -2,6 +2,8 @@
 
 Local-first chat UI with keyboard, mouse, push-to-talk microphone, and ELP stereo camera vision (YOLO11 + scene memory). Responses powered by **Nemotron3 Nano 4B** via `llama-server`.
 
+**UI:** Python [NiceGUI](https://nicegui.io) (terminal-style web UI on port 8000). No Node/npm required.
+
 ## Features
 
 - **Chat** – text input with streaming replies from Nemotron
@@ -12,11 +14,18 @@ Local-first chat UI with keyboard, mouse, push-to-talk microphone, and ELP stere
 ## Architecture
 
 ```
-React UI  ←WebSocket/REST→  FastAPI backend  →  llama-server (Nemotron)
-                                ├── faster-whisper (STT)
-                                ├── OpenCV (ELP camera)
-                                └── YOLO11 TensorRT
+NiceGUI (Python)  ←same process→  FastAPI backend  →  llama-server (Nemotron)
+                                      ├── faster-whisper (STT)
+                                      ├── OpenCV (ELP camera)
+                                      └── YOLO11 TensorRT
 ```
+
+## Requirements
+
+- **Python 3.11+** (uses `StrEnum` and modern typing)
+- JetPack 6.x on Orin Nano Super (for full GPU vision + Nemotron)
+- `llama-server` with CUDA on Jetson
+- USB mic + ELP stereo camera (optional on dev PC)
 
 ## Quick start (Jetson)
 
@@ -24,16 +33,15 @@ React UI  ←WebSocket/REST→  FastAPI backend  →  llama-server (Nemotron)
 
 - JetPack 6.x on Orin Nano Super
 
-**CUDA / JetPack** (on the Jetson, if `nvcc` is missing):
+**CUDA / JetPack** (if `nvcc` is missing):
 
 ```bash
 cd ~/Arif
 bash scripts/install-jetpack-cuda.sh        # full dev stack
-# or: bash scripts/install-jetpack-cuda.sh minimal   # nvcc only, smaller
+# or: bash scripts/install-jetpack-cuda.sh minimal
 ```
 
-Fresh device? Flash the [JetPack SD card image](https://developer.nvidia.com/embedded/jetpack) first, or follow the [Orin Nano JP6 initial setup](https://www.jetson-ai-lab.com/initial_setup_jon.html).
-- `llama-server` built with CUDA — install once on the Jetson:
+**llama-server** (one time):
 
 ```bash
 cd ~/Arif
@@ -41,7 +49,6 @@ bash scripts/install-llama-server.sh
 ```
 
 ([Jetson AI Lab – Nemotron3 Nano 4B](https://www.jetson-ai-lab.com/models/nemotron3-nano-4b/))
-- USB mic + ELP 1200p stereo camera
 
 ### 2. Setup
 
@@ -55,41 +62,19 @@ bash deploy/jetson_setup.sh
 
 ```bash
 bash models/download_models.sh
-# Nemotron GGUF + YOLO11n → TensorRT engine
 ```
 
-Set `YOLO_MODEL=models/yolo11n.engine` in `.env` after export.
+Set `YOLO_MODEL=models/yolo11n.engine` in `.env` after TensorRT export.
 
-### 4. Run everything (one command)
+### 4. Run
 
 ```bash
 arif
 ```
 
-This starts **llama-server** (Nemotron) and the **backend**, then prints the UI URL. Stop with `Ctrl+C` or `arif stop`.
+Starts **llama-server** + **backend/UI** on port **8000**. Stop with `Ctrl+C` or `arif stop`.
 
-Install the `arif` command (if you get `command not found`):
-
-```bash
-cd ~/Arif
-git pull
-bash scripts/install-arif.sh
-source ~/.bashrc
-hash -r
-arif
-```
-
-**Always works** (no PATH install needed):
-
-```bash
-bash ~/Arif/scripts/arif
-# or
-cd ~/Arif && ./arif
-# or
-cd ~/Arif && npm start
-```
-
-Or after setup: `bash deploy/jetson_setup.sh` links it automatically.
+Open `http://<jetson-ip>:8000`.
 
 **Manual start** (two terminals):
 
@@ -99,31 +84,35 @@ llama-server -m models/NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf \
 ```
 
 ```bash
-source .venv/bin/activate && cd backend && python run.py
+source .venv/bin/activate
+python backend/run.py
 ```
 
-Open `http://<jetson-ip>:8000` (production) or run `npm run dev` in `frontend/` for development.
-
-## Development (Windows / remote)
-
-**One command** (backend + frontend):
+## Development (Windows / Linux)
 
 ```bash
-npm install          # first time only (root + installs concurrently)
-npm run setup        # first time only (venv + Python + frontend deps)
-npm run dev:all
+cd Arif
+python scripts/setup.py          # creates .venv, installs deps (Python 3.11+)
 ```
 
-Open **http://localhost:5173** — Vite proxies `/api`, `/health`, and `/ws` to port 8000.
+**Windows:**
 
-### Plug-and-play devices
+```powershell
+.\.venv\Scripts\python.exe backend\run.py
+```
 
-On startup the backend **auto-detects** USB/external microphone and camera (best match by name/resolution). Change devices anytime:
+**Linux / macOS:**
 
-- Press **`D`** → device picker (↑↓ navigate, **Enter** select, **`A`** auto-detect)
-- Status bar shows active mic and camera names
+```bash
+source .venv/bin/activate
+python backend/run.py
+```
 
-### Keyboard navigation (no mouse required)
+Open **http://localhost:8000**.
+
+For chat, run `llama-server` separately (see manual start above). LLM status dot stays off until port 8080 is up.
+
+### Keyboard navigation
 
 | Key | Action |
 |-----|--------|
@@ -134,13 +123,6 @@ On startup the backend **auto-detects** USB/external microphone and camera (best
 | `Esc` | Back to chat |
 | `?` | Help screen |
 
-Or run separately:
-
-```bash
-npm run dev:backend   # API on :8000
-npm run dev:frontend  # UI on :5173
-```
-
 ## Configuration
 
 Copy `.env.example` to `.env`:
@@ -148,18 +130,12 @@ Copy `.env.example` to `.env`:
 | Variable | Description |
 |----------|-------------|
 | `LLM_BASE_URL` | llama-server OpenAI API (default `http://127.0.0.1:8080/v1`) |
+| `ARIF_HOST` / `ARIF_PORT` | UI server bind (default `0.0.0.0:8000`) |
 | `CAMERA_DEVICE` | V4L2 index (default `0`) |
-| `CAMERA_WIDTH` / `CAMERA_HEIGHT` | Capture size (default `1600x600` for stereo half) |
-| `VAD_SILENCE_SECONDS` | Auto-send delay after PTT release (default `3`) |
+| `VAD_SILENCE_SECONDS` | Auto-send after PTT (default `3`) |
 | `YOLO_FPS_CAP` | Max inference FPS (default `8`) |
 
-## ELP stereo camera
-
-The ELP 1200p typically outputs a side-by-side frame (e.g. 3200×1200). The backend splits into left/right; **YOLO runs on the left view**. Adjust `CAMERA_WIDTH`/`CAMERA_HEIGHT` if your device reports different modes (`v4l2-ctl --list-formats-ext`).
-
 ## systemd (optional)
-
-Edit user paths in `deploy/systemd/*.service`, then:
 
 ```bash
 sudo cp deploy/systemd/nemotron-llama.service /etc/systemd/system/
@@ -172,17 +148,17 @@ sudo systemctl enable --now nemotron-llama arif-backend
 
 | Endpoint | Description |
 |----------|-------------|
+| `GET /` | NiceGUI web UI |
 | `GET /health` | Backend + LLM status |
-| `POST /api/chat` | Send chat message |
+| `POST /api/chat` | Non-streaming chat |
 | `GET /api/vision/camera/mjpeg` | Live camera stream |
-| `GET /api/vision/memory/query?minutes=5` | Query scene memory |
-| `WS /ws` | PTT, chat streaming, vision metadata |
+| `WS /ws` | PTT, streaming chat, vision metadata (optional clients) |
 
 ## Memory tips (8 GB)
 
 - Keep Nemotron in a **separate** `llama-server` process
-- Use `tiny.en` Whisper first; upgrade to `base.en` if accuracy is insufficient
-- Lower `YOLO_FPS_CAP` if you see OOM or thermal throttling
+- Use `tiny.en` Whisper first; upgrade to `base.en` if needed
+- Lower `YOLO_FPS_CAP` if OOM or thermal throttling
 
 ## License
 

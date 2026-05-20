@@ -13,9 +13,8 @@ models/*.engine
 models/*.gguf
 models/*.bin
 
-# Node
+# Node (legacy)
 node_modules/
-frontend/dist/
 
 # IDE
 .idea/

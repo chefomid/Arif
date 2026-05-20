@@ -22,21 +22,15 @@ sudo apt-get install -y \
   v4l-utils \
   build-essential
 
-echo "==> Python virtualenv"
+echo "==> Python virtualenv (requires Python 3.11+)"
+if ! python3 -c 'import sys; exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
+  echo "ERROR: Python 3.11+ required. Install with: sudo apt install python3.11 python3.11-venv"
+  exit 1
+fi
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -r backend/requirements.txt
-
-echo "==> Frontend build"
-if command -v npm &>/dev/null; then
-  cd frontend
-  npm install
-  npm run build
-  cd "$ARIF_ROOT"
-else
-  echo "WARN: npm not found – build frontend on dev machine and copy frontend/dist"
-fi
 
 echo "==> Environment file"
 if [ ! -f .env ]; then

@@ -1,13 +1,14 @@
-"""Run backend: python run.py from backend/ directory."""
+"""Run Arif: FastAPI + NiceGUI UI on one port."""
 import uvicorn
 
 from app.config import get_settings
+from app.main import app
 
 if __name__ == "__main__":
-    s = get_settings()
+    settings = get_settings()
     uvicorn.run(
-        "app.main:app",
-        host=s.arif_host,
-        port=s.arif_port,
-        reload=s.arif_debug,
+        app,
+        host=settings.arif_host,
+        port=settings.arif_port,
+        reload=settings.arif_debug,
     )

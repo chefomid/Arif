@@ -127,10 +127,6 @@ if [[ ! -f "$ARIF_ROOT/.env" ]]; then
   log "Created .env from .env.example"
 fi
 
-if [[ ! -f "$ARIF_ROOT/frontend/dist/index.html" ]]; then
-  log "WARN: frontend/dist missing — run jetson_setup.sh or: cd frontend && npm install && npm run build"
-fi
-
 # --- llama-server ---
 if llm_ready; then
   log "llama-server already responding on port ${LLM_PORT} — reusing it."
