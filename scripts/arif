@@ -188,7 +188,8 @@ gpu_layer_tiers() {
     tiers+=("$t")
   }
 
-  if [[ "$requested" != "auto" && -n "$requested" ]]; then
+  # With auto-fit, ignore LLM_GPU_LAYERS=999 in .env — always use safe CPU-first order.
+  if [[ "$requested" != "auto" && -n "$requested" ]] && ! truthy "${ARIF_LLM_AUTO_FIT:-false}"; then
     add_tier "$requested"
   fi
 
@@ -272,10 +273,13 @@ start_llama_with_fallback() {
   done
 
   if [[ "$tiers_ok" -eq 0 ]]; then
+    mkdir -p "$ARIF_ROOT/logs"
+    local persist_log="$ARIF_ROOT/logs/llama-last.log"
+    cp -f "$LLAMA_LOG" "$persist_log" 2>/dev/null || true
     err "Nemotron failed to load at all GPU/CPU tiers."
-    err "Log: $LLAMA_LOG"
-    tail -40 "$LLAMA_LOG" >&2 || true
-    rm -f "$LLAMA_LOG"
+    err "Full log: $persist_log"
+    err "View: arif logs   or: cat $persist_log"
+    tail -40 "$persist_log" >&2 || true
     LLAMA_LOG=""
     return 1
   fi
@@ -325,8 +329,18 @@ case "${1:-start}" in
     trap - EXIT INT TERM
     exit 0
     ;;
+  logs)
+    if [[ -f "$ARIF_ROOT/logs/llama-last.log" ]]; then
+      less "$ARIF_ROOT/logs/llama-last.log" 2>/dev/null || cat "$ARIF_ROOT/logs/llama-last.log"
+    else
+      err "No log yet. Run: arif   then on failure: cat logs/llama-last.log"
+      ls -la /tmp/arif-llama.*.log 2>/dev/null || true
+    fi
+    trap - EXIT INT TERM
+    exit 0
+    ;;
   *)
-    err "Usage: arif [start|stop|gpu-prep]"
+    err "Usage: arif [start|stop|gpu-prep|logs]"
     exit 1
     ;;
 esac

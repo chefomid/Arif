@@ -212,6 +212,11 @@ LLM_CTX_SIZE=2048
 arif
 ```
 
+**Important:** do not set `LLM_GPU_LAYERS=999` with auto-fit — that forces GPU-first and OOMs. Use `auto` or leave unset.
+
+On failure: `arif logs` or `cat logs/llama-last.log`
+```
+
 Force CPU only (slowest, most reliable):
 
 ```bash

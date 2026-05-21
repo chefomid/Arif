@@ -110,4 +110,4 @@ if command -v tegrastats &>/dev/null; then
   done || true
 fi
 
-log "Done. Nemotron can use GPU (LLM_GPU_LAYERS=999)."
+log "Done. Run: arif  (auto-fits GPU layers; CPU-first on 8GB)"
