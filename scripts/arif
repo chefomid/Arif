@@ -122,6 +122,12 @@ if [[ ! -f "$ARIF_ROOT/.venv/bin/python" ]]; then
   exit 1
 fi
 
+if ! "$ARIF_ROOT/.venv/bin/python" -c 'import sys; exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
+  err "Python 3.11+ required in .venv (found older interpreter)."
+  err "  bash scripts/install-python.sh"
+  exit 1
+fi
+
 if [[ ! -f "$ARIF_ROOT/.env" ]]; then
   cp "$ARIF_ROOT/.env.example" "$ARIF_ROOT/.env"
   log "Created .env from .env.example"

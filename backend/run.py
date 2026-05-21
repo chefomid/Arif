@@ -1,4 +1,8 @@
 """Run Arif: FastAPI + NiceGUI UI on one port."""
+from check_python import require_python
+
+require_python()
+
 import uvicorn
 
 from app.config import get_settings

@@ -25,9 +25,20 @@ def main() -> None:
         "pip.exe" if sys.platform == "win32" else "pip"
     )
 
+    print(f"==> Using Python {sys.version.split()[0]}")
     print("==> Creating Python virtualenv...")
     if not venv_py.exists():
         subprocess.check_call([py, "-m", "venv", str(VENV)])
+
+    # Re-check venv interpreter (user may have old .venv from Python 3.10)
+    r = subprocess.run(
+        [str(venv_py), "-c", "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)"],
+        capture_output=True,
+    )
+    if r.returncode != 0:
+        print("ERROR: Existing .venv uses Python < 3.11. Remove it and re-run setup:")
+        print(f"  {VENV}")
+        sys.exit(1)
 
     print("==> Installing backend dependencies...")
     subprocess.check_call([str(venv_py), "-m", "pip", "install", "--upgrade", "pip"])

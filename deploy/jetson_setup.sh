@@ -23,11 +23,32 @@ sudo apt-get install -y \
   build-essential
 
 echo "==> Python virtualenv (requires Python 3.11+)"
-if ! python3 -c 'import sys; exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
-  echo "ERROR: Python 3.11+ required. Install with: sudo apt install python3.11 python3.11-venv"
-  exit 1
+PYTHON=""
+for cmd in python3.12 python3.11 python3; do
+  if command -v "$cmd" &>/dev/null \
+    && "$cmd" -c 'import sys; exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
+    PYTHON="$cmd"
+    break
+  fi
+done
+if [[ -z "$PYTHON" ]]; then
+  echo "==> Installing Python 3.11+ (scripts/install-python.sh)"
+  bash "$ARIF_ROOT/scripts/install-python.sh" --no-setup
+  PYTHON=""
+  for cmd in python3.12 python3.11 python3; do
+    if command -v "$cmd" &>/dev/null \
+      && "$cmd" -c 'import sys; exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
+      PYTHON="$cmd"
+      break
+    fi
+  done
+  if [[ -z "$PYTHON" ]]; then
+    echo "ERROR: Python 3.11+ required. Run: bash scripts/install-python.sh"
+    exit 1
+  fi
 fi
-python3 -m venv .venv
+echo "Using: $($PYTHON --version)"
+"$PYTHON" -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -r backend/requirements.txt

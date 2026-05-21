@@ -22,7 +22,7 @@ NiceGUI (Python)  ←same process→  FastAPI backend  →  llama-server (Nemotr
 
 ## Requirements
 
-- **Python 3.11+** (uses `StrEnum` and modern typing)
+- **Python 3.11+** (required — app will not start on 3.10; uses `StrEnum` from the stdlib)
 - JetPack 6.x on Orin Nano Super (for full GPU vision + Nemotron)
 - `llama-server` with CUDA on Jetson
 - USB mic + ELP stereo camera (optional on dev PC)
@@ -55,7 +55,14 @@ bash scripts/install-llama-server.sh
 ```bash
 git clone <your-repo> ~/Arif
 cd ~/Arif
-bash deploy/jetson_setup.sh
+bash scripts/install-python.sh    # Python 3.11+ + .venv (one command)
+bash deploy/jetson_setup.sh         # optional: CUDA, models, llama-server
+```
+
+After `git pull`, refresh Python/venv only:
+
+```bash
+cd ~/Arif && git pull && bash scripts/install-python.sh
 ```
 
 ### 3. Models
@@ -111,6 +118,20 @@ python backend/run.py
 Open **http://localhost:8000**.
 
 For chat, run `llama-server` separately (see manual start above). LLM status dot stays off until port 8080 is up.
+
+### Python version errors
+
+If you see `cannot import name 'StrEnum' from 'enum'` or `Python 3.11+ required`:
+
+```bash
+# Jetson / Linux — one command
+bash scripts/install-python.sh
+
+# Windows — use Python 3.11+ from python.org, then:
+Remove-Item -Recurse -Force .venv
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+```
 
 ### Keyboard navigation
 
