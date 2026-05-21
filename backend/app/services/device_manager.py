@@ -39,6 +39,7 @@ class DeviceManager:
         settings = get_settings()
         self._mic_index: int | None = settings.mic_device
         self._camera_index: int = settings.camera_device
+        self._clamp_camera_index()
 
     @property
     def mic_index(self) -> int | None:
@@ -93,12 +94,53 @@ class DeviceManager:
         result.sort(key=lambda d: (-d.score, d.index))
         return result
 
+    def _camera_backend(self) -> int:
+        import cv2
+
+        if _is_windows():
+            return cv2.CAP_DSHOW
+        return cv2.CAP_V4L2
+
+    def _probe_camera(self, index: int) -> bool:
+        import cv2
+
+        cap = cv2.VideoCapture(index, self._camera_backend())
+        ok = cap.isOpened()
+        if ok:
+            ret, _ = cap.read()
+            ok = ret
+        cap.release()
+        return ok
+
+    def _clamp_camera_index(self) -> None:
+        """Drop invalid CAMERA_DEVICE from .env (e.g. 7 when only /dev/video0–1 exist)."""
+        cams = self.list_camera_devices()
+        valid = {c.index for c in cams}
+        if valid and self._camera_index not in valid:
+            fallback = min(valid)
+            logger.warning(
+                "CAMERA_DEVICE=%s not available (found %s); using %s",
+                self._camera_index,
+                sorted(valid),
+                fallback,
+            )
+            self._camera_index = fallback
+        elif not valid and self._camera_index > 0 and not self._probe_camera(
+            self._camera_index
+        ):
+            logger.warning(
+                "CAMERA_DEVICE=%s not openable; defaulting to 0",
+                self._camera_index,
+            )
+            self._camera_index = 0
+
     def list_camera_devices(self, max_probe: int = 8) -> list[CameraDevice]:
         import cv2
 
         result: list[CameraDevice] = []
+        backend = self._camera_backend()
         for i in range(max_probe):
-            cap = cv2.VideoCapture(i, cv2.CAP_DSHOW if _is_windows() else cv2.CAP_ANY)
+            cap = cv2.VideoCapture(i, backend)
             if not cap.isOpened():
                 cap.release()
                 continue
@@ -114,8 +156,6 @@ class DeviceManager:
             score = 0
             pixels = w * h
             score += min(pixels // 10000, 20)
-            if i > 0:
-                score += 3
             if w > h * 1.5:
                 score += 5
 
@@ -149,7 +189,11 @@ class DeviceManager:
             self._camera_index = best_cam.index
             logger.info("Auto-selected camera [%d] %s", best_cam.index, best_cam.name)
         else:
-            self._camera_index = get_settings().camera_device
+            self._clamp_camera_index()
+            logger.warning(
+                "No cameras enumerated; using index %s (set CAMERA_DEVICE=0 in .env)",
+                self._camera_index,
+            )
 
         return self.status()
 

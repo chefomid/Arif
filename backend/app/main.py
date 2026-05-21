@@ -19,6 +19,11 @@ async def lifespan(app: FastAPI):
     from app.services.device_manager import device_manager
 
     device_manager.auto_select()
+    # USB cameras on Jetson may enumerate shortly after boot.
+    import asyncio
+
+    await asyncio.sleep(1.0)
+    device_manager.auto_select()
     logger.info("Arif backend started")
     yield
     from app.services.camera import camera_service

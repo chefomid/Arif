@@ -152,7 +152,7 @@ Copy `.env.example` to `.env`:
 |----------|-------------|
 | `LLM_BASE_URL` | llama-server OpenAI API (default `http://127.0.0.1:8080/v1`) |
 | `ARIF_HOST` / `ARIF_PORT` | UI server bind (default `0.0.0.0:8000`) |
-| `CAMERA_DEVICE` | V4L2 index (default `0`) |
+| `CAMERA_DEVICE` | V4L2 index (default `0`; must exist — check with `v4l2-ctl --list-devices`) |
 | `VAD_SILENCE_SECONDS` | Auto-send after PTT (default `3`) |
 | `YOLO_FPS_CAP` | Max inference FPS (default `8`) |
 

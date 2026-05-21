@@ -41,8 +41,20 @@ class CameraService:
         self._refresh_config()
         import sys
 
-        backend = cv2.CAP_DSHOW if sys.platform == "win32" else cv2.CAP_ANY
+        backend = cv2.CAP_DSHOW if sys.platform == "win32" else cv2.CAP_V4L2
         self._cap = cv2.VideoCapture(self._device, backend)
+        if not self._cap.isOpened():
+            from app.services.device_manager import device_manager
+
+            logger.warning(
+                "Failed to open camera %s — re-scanning devices",
+                self._device,
+            )
+            device_manager.auto_select()
+            self._refresh_config()
+            if self._cap:
+                self._cap.release()
+            self._cap = cv2.VideoCapture(self._device, backend)
         if not self._cap.isOpened():
             logger.error("Failed to open camera device %s", self._device)
             return False
