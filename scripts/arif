@@ -12,12 +12,30 @@ fi
 ARIF_ROOT="$(cd "$(dirname "$_arif_script")/.." && pwd)"
 cd "$ARIF_ROOT"
 
+if [[ -f "$ARIF_ROOT/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ARIF_ROOT/.env"
+  set +a
+fi
+
 MODEL="${ARIF_MODEL:-models/NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf}"
 LLM_HOST="${LLM_HOST:-0.0.0.0}"
 LLM_PORT="${LLM_PORT:-8080}"
 ARIF_PORT="${ARIF_PORT:-8000}"
-LLM_GPU_LAYERS="${LLM_GPU_LAYERS:-999}"
 LLM_ALIAS="${LLM_ALIAS:-nemotron}"
+LLM_CTX_SIZE="${LLM_CTX_SIZE:-4096}"
+
+# Default GPU layers: full offload (999) only when unset and plenty of RAM.
+# On 8GB Jetson with desktop, 999 often OOMs — use partial/CPU unless .env overrides.
+if [[ -z "${LLM_GPU_LAYERS+x}" ]]; then
+  mem_gb="$(awk '/MemTotal:/ {printf "%d", $2/1024/1024}' /proc/meminfo 2>/dev/null || echo 0)"
+  if [[ "$(uname -m)" == "aarch64" && "$mem_gb" -gt 0 && "$mem_gb" -le 9 ]]; then
+    LLM_GPU_LAYERS=0
+  else
+    LLM_GPU_LAYERS=999
+  fi
+fi
 
 LLAMA_PID=""
 STARTED_LLAMA=0
@@ -157,11 +175,15 @@ else
     err "Port ${LLM_PORT} is in use but llama-server is not healthy yet. Stop the other process or run: arif stop"
     exit 1
   fi
-  log "Starting Nemotron (llama-server)..."
+  log "Starting Nemotron (llama-server, n-gpu-layers=${LLM_GPU_LAYERS}, ctx=${LLM_CTX_SIZE})..."
+  if [[ "$LLM_GPU_LAYERS" == "0" ]]; then
+    log "CPU-only LLM (slower). For GPU: close other apps, then set LLM_GPU_LAYERS=999 in .env"
+  fi
   "$LLAMA_BIN" \
     -m "$ARIF_ROOT/$MODEL" \
     --host "$LLM_HOST" \
     --port "$LLM_PORT" \
+    --ctx-size "$LLM_CTX_SIZE" \
     --n-gpu-layers "$LLM_GPU_LAYERS" \
     --alias "$LLM_ALIAS" &
   LLAMA_PID=$!

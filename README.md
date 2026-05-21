@@ -181,6 +181,17 @@ sudo systemctl enable --now nemotron-llama arif-backend
 - Use `tiny.en` Whisper first; upgrade to `base.en` if needed
 - Lower `YOLO_FPS_CAP` if OOM or thermal throttling
 
+### CUDA OOM loading Nemotron (`cudaMalloc failed: out of memory`)
+
+On **Orin Nano 8GB** with the desktop running, full GPU offload often fails. In `.env`:
+
+```bash
+LLM_GPU_LAYERS=0      # CPU only (reliable, slower)
+LLM_CTX_SIZE=4096
+```
+
+Then `arif stop` and `arif`. For partial GPU after closing other apps: `LLM_GPU_LAYERS=32` … `999`.
+
 ## License
 
 Project code: MIT. Model weights follow NVIDIA / Ultralytics / OpenAI licenses respectively.
