@@ -51,6 +51,11 @@ fi
 
 log "Jetson: $(tr -d '\0' </proc/device-tree/model 2>/dev/null || echo unknown)"
 
+ARIF_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ -f "$ARIF_ROOT/scripts/jetson-swap.sh" ]]; then
+  bash "$ARIF_ROOT/scripts/jetson-swap.sh" || true
+fi
+
 if command -v nvpmodel &>/dev/null; then
   log "Setting max performance (nvpmodel)..."
   sudo nvpmodel -m 0 2>/dev/null || sudo nvpmodel -m 2 2>/dev/null || warn "nvpmodel failed (sudo?)"

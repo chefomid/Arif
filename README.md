@@ -200,14 +200,25 @@ Disable auto prep: `ARIF_ENGAGE_GPU=false` in `.env`.
 
 ### CUDA OOM loading Nemotron (`cudaMalloc failed: out of memory`)
 
-If GPU load still fails after prep:
+`arif` now **auto-fits** on Jetson (`ARIF_LLM_AUTO_FIT=true`): tries high GPU layers, then steps down to CPU until the model loads. Also adds **8GB swap** and uses **ctx=2048** by default on 8GB boards.
 
 ```bash
-LLM_GPU_LAYERS=0      # CPU only (reliable, slower)
-LLM_CTX_SIZE=4096
+git pull
+arif stop
+# merge into .env:
+ARIF_LLM_AUTO_FIT=true
+LLM_GPU_LAYERS=auto
+LLM_CTX_SIZE=2048
+arif
 ```
 
-Then `arif stop` and `arif`. Or try partial GPU: `LLM_GPU_LAYERS=32`.
+Force CPU only (slowest, most reliable):
+
+```bash
+ARIF_LLM_AUTO_FIT=false
+LLM_GPU_LAYERS=0
+LLM_CTX_SIZE=2048
+```
 
 ## License
 
