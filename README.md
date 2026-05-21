@@ -24,7 +24,7 @@ NiceGUI (Python)  ←same process→  FastAPI backend  →  llama-server (Nemotr
 
 - **Python 3.11+** (required — app will not start on 3.10; uses `StrEnum` from the stdlib)
 - JetPack 6.x on Orin Nano Super (for full GPU vision + Nemotron)
-- `llama-server` with CUDA on Jetson
+- `llama-server` on Jetson (**CPU** for Nemotron on 8GB; optional GPU for YOLO)
 - USB mic + ELP stereo camera (optional on dev PC)
 
 ## Quick start (Jetson)
@@ -55,14 +55,24 @@ bash scripts/install-llama-server.sh
 ```bash
 git clone <your-repo> ~/Arif
 cd ~/Arif
-bash scripts/install-python.sh    # Python 3.11+ + .venv (one command)
-bash deploy/jetson_setup.sh         # optional: CUDA, models, llama-server
+bash scripts/jetson-update.sh     # pull, disk cleanup, .env, venv
 ```
 
-After `git pull`, refresh Python/venv only:
+Or step by step:
 
 ```bash
-cd ~/Arif && git pull && bash scripts/install-python.sh
+bash scripts/install-python.sh
+bash scripts/configure-env.sh     # CPU-only .env (no nano needed)
+bash models/download_models.sh
+bash scripts/install-llama-server.sh
+```
+
+**After every `git pull` on the Nano:**
+
+```bash
+cd ~/Arif
+bash scripts/jetson-update.sh
+# or:  arif update
 ```
 
 ### 3. Models

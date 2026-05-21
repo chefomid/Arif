@@ -12,6 +12,10 @@ fi
 ARIF_ROOT="$(cd "$(dirname "$_arif_script")/.." && pwd)"
 cd "$ARIF_ROOT"
 
+if [[ -f "$ARIF_ROOT/scripts/configure-env.sh" ]]; then
+  bash "$ARIF_ROOT/scripts/configure-env.sh" --quiet
+fi
+
 if [[ -f "$ARIF_ROOT/.env" ]]; then
   set -a
   # shellcheck disable=SC1091
@@ -339,6 +343,16 @@ case "${1:-start}" in
     trap - EXIT INT TERM
     exit 0
     ;;
+  configure)
+    bash "$ARIF_ROOT/scripts/configure-env.sh"
+    trap - EXIT INT TERM
+    exit 0
+    ;;
+  update)
+    bash "$ARIF_ROOT/scripts/jetson-update.sh"
+    trap - EXIT INT TERM
+    exit 0
+    ;;
   logs)
     if [[ -f "$ARIF_ROOT/logs/llama-last.log" ]]; then
       less "$ARIF_ROOT/logs/llama-last.log" 2>/dev/null || cat "$ARIF_ROOT/logs/llama-last.log"
@@ -350,7 +364,7 @@ case "${1:-start}" in
     exit 0
     ;;
   *)
-    err "Usage: arif [start|stop|gpu-prep|cleanup|logs]"
+    err "Usage: arif [start|stop|update|configure|cleanup|logs|gpu-prep]"
     exit 1
     ;;
 esac
@@ -364,7 +378,7 @@ if [[ ! -f "$ARIF_ROOT/$MODEL" ]]; then
 fi
 
 if [[ ! -f "$ARIF_ROOT/.venv/bin/python" ]]; then
-  err "Python venv missing. Run: bash deploy/jetson_setup.sh"
+  err "Python venv missing. Run: bash scripts/install-python.sh"
   exit 1
 fi
 
@@ -374,10 +388,7 @@ if ! "$ARIF_ROOT/.venv/bin/python" -c 'import sys; exit(0 if sys.version_info >=
   exit 1
 fi
 
-if [[ ! -f "$ARIF_ROOT/.env" ]]; then
-  cp "$ARIF_ROOT/.env.example" "$ARIF_ROOT/.env"
-  log "Created .env from .env.example"
-fi
+mkdir -p "$ARIF_ROOT/logs"
 
 # --- llama-server ---
 if llm_ready; then
@@ -402,6 +413,9 @@ else
       warn "LLM_GPU_LAYERS=${LLM_GPU_LAYERS} uses GPU; set LLM_GPU_LAYERS=0 for CPU-only"
     fi
     read -ra _extra < <(llama_extra_args "$LLAMA_BIN")
+    mkdir -p "$ARIF_ROOT/logs"
+    LLAMA_LOG="$ARIF_ROOT/logs/llama-last.log"
+    : >"$LLAMA_LOG"
     "$LLAMA_BIN" \
       -m "$ARIF_ROOT/$MODEL" \
       --host "$LLM_HOST" \
@@ -409,13 +423,15 @@ else
       --ctx-size "$LLM_CTX_SIZE" \
       --n-gpu-layers "$LLM_GPU_LAYERS" \
       "${_extra[@]}" \
-      --alias "$LLM_ALIAS" &
+      --alias "$LLM_ALIAS" \
+      >"$LLAMA_LOG" 2>&1 &
     LLAMA_PID=$!
     STARTED_LLAMA=1
-    log "Waiting for llama-server (pid $LLAMA_PID)..."
+    log "Waiting for llama-server (pid $LLAMA_PID, log: logs/llama-last.log)..."
     if ! wait_for_llm 180; then
       err "llama-server did not become ready (CPU load can take several minutes)."
-      err "Check: arif logs"
+      err "Check: arif logs   or: tail -40 logs/llama-last.log"
+      tail -20 "$LLAMA_LOG" >&2 || true
       exit 1
     fi
     log "llama-server ready."
