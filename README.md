@@ -87,7 +87,7 @@ Open `http://<jetson-ip>:8000`.
 
 ```bash
 llama-server -m models/NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf \
-  --host 0.0.0.0 --port 8080 --n-gpu-layers 999 --alias nemotron
+  --host 0.0.0.0 --port 8080 --n-gpu-layers 0 --ctx-size 2048 --alias nemotron
 ```
 
 ```bash
@@ -177,52 +177,30 @@ sudo systemctl enable --now nemotron-llama arif-backend
 
 ## Memory tips (8 GB)
 
-- Keep Nemotron in a **separate** `llama-server` process
-- Use `tiny.en` Whisper first; upgrade to `base.en` if needed
-- Lower `YOLO_FPS_CAP` if OOM or thermal throttling
-
-### GPU mode on Jetson (`ARIF_ENGAGE_GPU`)
-
-By default on Jetson, `arif` runs **`scripts/jetson-gpu-prep.sh`** before Nemotron:
-
-- `sudo nvpmodel` + `jetson_clocks` (max performance)
-- Safely stops **browsers** (Chromium/Firefox), LibreOffice, extra `llama-server`, VS Code/Cursor
-- Does **not** stop GNOME, SSH, audio (mic), NetworkManager, or Arif itself
-- Drops page cache to free unified memory
-- Sets **`LLM_GPU_LAYERS=999`** unless you forced `LLM_GPU_LAYERS=0` in `.env`
+**Default: Nemotron on CPU** (`LLM_GPU_LAYERS=0`) — avoids CUDA OOM on Orin Nano 8GB. First load can take **3–6 minutes**; then chat works.
 
 ```bash
-arif              # prep + GPU Nemotron + backend
-arif gpu-prep     # prep only (no Arif start)
-```
-
-Disable auto prep: `ARIF_ENGAGE_GPU=false` in `.env`.
-
-### CUDA OOM loading Nemotron (`cudaMalloc failed: out of memory`)
-
-`arif` now **auto-fits** on Jetson (`ARIF_LLM_AUTO_FIT=true`): tries **CPU first** on 8GB, then steps up GPU layers. Waits up to **6 minutes** for CPU load. Also adds **8GB swap** and uses **ctx=2048** by default on 8GB boards.
-
-```bash
-git pull
-arif stop
-# merge into .env:
-ARIF_LLM_AUTO_FIT=true
-LLM_GPU_LAYERS=auto
-LLM_CTX_SIZE=2048
-arif
-```
-
-**Important:** do not set `LLM_GPU_LAYERS=999` with auto-fit — that forces GPU-first and OOMs. Use `auto` or leave unset.
-
-On failure: `arif logs` or `cat logs/llama-last.log`
-```
-
-Force CPU only (slowest, most reliable):
-
-```bash
+# In .env (defaults from .env.example):
+ARIF_ENGAGE_GPU=false
 ARIF_LLM_AUTO_FIT=false
 LLM_GPU_LAYERS=0
 LLM_CTX_SIZE=2048
+```
+
+- Keep Nemotron in a **separate** `llama-server` process
+- Use `tiny.en` Whisper; lower `YOLO_FPS_CAP` if tight on RAM
+- On failure: `arif logs` or `cat logs/llama-last.log`
+
+### Optional: GPU mode (`ARIF_ENGAGE_GPU=true`)
+
+Only if you have headroom and want faster inference:
+
+```bash
+ARIF_ENGAGE_GPU=true
+ARIF_LLM_AUTO_FIT=true
+LLM_GPU_LAYERS=auto
+arif gpu-prep   # max clocks, closes browsers
+arif
 ```
 
 ## License

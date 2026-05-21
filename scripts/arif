@@ -61,15 +61,15 @@ if [[ -z "${LLM_CTX_SIZE+x}" ]]; then
 fi
 
 if [[ -z "${ARIF_ENGAGE_GPU+x}" ]]; then
-  if is_jetson; then ARIF_ENGAGE_GPU=true; else ARIF_ENGAGE_GPU=false; fi
+  ARIF_ENGAGE_GPU=false
 fi
 
 if [[ -z "${ARIF_LLM_AUTO_FIT+x}" ]]; then
-  if is_jetson; then ARIF_LLM_AUTO_FIT=true; else ARIF_LLM_AUTO_FIT=false; fi
+  ARIF_LLM_AUTO_FIT=false
 fi
 
 if [[ -z "${LLM_GPU_LAYERS+x}" ]]; then
-  LLM_GPU_LAYERS=auto
+  LLM_GPU_LAYERS=0
 fi
 
 if truthy "$ARIF_ENGAGE_GPU" && is_jetson; then
@@ -387,7 +387,10 @@ else
   if truthy "${ARIF_LLM_AUTO_FIT:-false}"; then
     start_llama_with_fallback "$LLAMA_BIN" || exit 1
   else
-    log "Starting Nemotron (n-gpu-layers=${LLM_GPU_LAYERS}, ctx=${LLM_CTX_SIZE})..."
+    log "Starting Nemotron on CPU (n-gpu-layers=${LLM_GPU_LAYERS}, ctx=${LLM_CTX_SIZE})..."
+    if [[ "$LLM_GPU_LAYERS" != "0" ]]; then
+      warn "LLM_GPU_LAYERS=${LLM_GPU_LAYERS} uses GPU; set LLM_GPU_LAYERS=0 for CPU-only"
+    fi
     read -ra _extra < <(llama_extra_args "$LLAMA_BIN")
     "$LLAMA_BIN" \
       -m "$ARIF_ROOT/$MODEL" \
@@ -400,8 +403,9 @@ else
     LLAMA_PID=$!
     STARTED_LLAMA=1
     log "Waiting for llama-server (pid $LLAMA_PID)..."
-    if ! wait_for_llm; then
-      err "llama-server did not become ready. Try ARIF_LLM_AUTO_FIT=true in .env"
+    if ! wait_for_llm 180; then
+      err "llama-server did not become ready (CPU load can take several minutes)."
+      err "Check: arif logs"
       exit 1
     fi
     log "llama-server ready."
