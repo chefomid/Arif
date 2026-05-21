@@ -152,10 +152,32 @@ llama_failed_oom() {
   grep -qiE 'out of memory|cudaMalloc failed|unable to allocate CUDA|error loading model' "$LLAMA_LOG"
 }
 
-# Build try-order for n-gpu-layers (deduped).
+# Extra llama-server flags only if this binary supports them (avoids instant exit).
+llama_extra_args() {
+  local llama_bin=$1
+  local help
+  help="$("$llama_bin" --help 2>&1 || true)"
+  if grep -q -- '--parallel' <<<"$help"; then
+    printf '%s\n' --parallel 1
+  fi
+}
+
+tier_wait_seconds() {
+  local ngl=$1
+  if [[ "$ngl" == "0" ]]; then
+    echo 360
+  elif [[ "$ngl" -lt 32 ]]; then
+    echo 240
+  else
+    echo 90
+  fi
+}
+
+# Build try-order for n-gpu-layers (deduped). On 8GB Jetson: CPU first so chat works.
 gpu_layer_tiers() {
   local avail_mb=$1
   local requested=$2
+  local mem_gb=$3
   local -a tiers=()
   local -A seen=()
 
@@ -170,14 +192,16 @@ gpu_layer_tiers() {
     add_tier "$requested"
   fi
 
-  if [[ "$avail_mb" -lt 2800 ]]; then
+  if is_jetson && [[ "$mem_gb" -gt 0 && "$mem_gb" -le 9 ]]; then
+    add_tier 0 8 16 32 48 64 999
+  elif [[ "$avail_mb" -lt 2800 ]]; then
     add_tier 0
   elif [[ "$avail_mb" -lt 3800 ]]; then
-    add_tier 8 16 0
+    add_tier 0 8 16
   elif [[ "$avail_mb" -lt 4800 ]]; then
-    add_tier 16 32 8 0
+    add_tier 0 16 32 8
   else
-    add_tier 999 64 48 32 16 8 0
+    add_tier 0 8 16 32 48 64 999
   fi
 
   printf '%s\n' "${tiers[@]}"
@@ -185,30 +209,41 @@ gpu_layer_tiers() {
 
 start_llama_with_fallback() {
   local llama_bin=$1
-  local avail_mb
+  local avail_mb mem_gb max_wait ngl tiers_ok=0 tier_n=0 tier_total
+  local -a extra_args=()
+
   avail_mb="$(mem_avail_mb)"
-  log "MemAvailable: ${avail_mb} MB — auto-fitting n-gpu-layers (ctx=${LLM_CTX_SIZE})"
+  mem_gb="$(mem_total_gb)"
+  mapfile -t _tiers < <(gpu_layer_tiers "$avail_mb" "${LLM_GPU_LAYERS}" "$mem_gb")
+  tier_total="${#_tiers[@]}"
+
+  log "MemAvailable: ${avail_mb} MB — trying ${tier_total} configs (ctx=${LLM_CTX_SIZE}, CPU-first on 8GB)"
+
+  read -ra extra_args < <(llama_extra_args "$llama_bin")
 
   LLAMA_LOG="$(mktemp /tmp/arif-llama.XXXXXX.log)"
-  local ngl tiers_ok=0
-  while IFS= read -r ngl; do
-    [[ -z "$ngl" ]] && continue
+
+  for ngl in "${_tiers[@]}"; do
+    tier_n=$((tier_n + 1))
     kill_started_llama
-    log "Trying llama-server: n-gpu-layers=${ngl} ..."
+    sleep 2
+    max_wait="$(tier_wait_seconds "$ngl")"
+    log "[$tier_n/$tier_total] llama-server n-gpu-layers=${ngl} (wait up to ${max_wait}s) ..."
+    : >"$LLAMA_LOG"
     "$llama_bin" \
       -m "$ARIF_ROOT/$MODEL" \
       --host "$LLM_HOST" \
       --port "$LLM_PORT" \
       --ctx-size "$LLM_CTX_SIZE" \
       --n-gpu-layers "$ngl" \
-      --parallel 1 \
+      "${extra_args[@]}" \
       --alias "$LLM_ALIAS" \
-      >>"$LLAMA_LOG" 2>&1 &
+      >"$LLAMA_LOG" 2>&1 &
     LLAMA_PID=$!
     STARTED_LLAMA=1
 
     local waited=0
-    while ((waited < 120)); do
+    while ((waited < max_wait)); do
       if llm_ready; then
         LLM_GPU_LAYERS=$ngl
         tiers_ok=1
@@ -218,11 +253,12 @@ start_llama_with_fallback() {
         return 0
       fi
       if ! kill -0 "$LLAMA_PID" 2>/dev/null; then
-        warn "llama-server exited during load (n-gpu-layers=${ngl})"
+        warn "llama-server exited early (n-gpu-layers=${ngl})"
+        tail -8 "$LLAMA_LOG" 2>/dev/null | while read -r line; do warn "  $line"; done
         break
       fi
       if llama_failed_oom; then
-        warn "CUDA OOM at n-gpu-layers=${ngl} — trying fewer GPU layers..."
+        warn "CUDA OOM at n-gpu-layers=${ngl} — next tier..."
         kill_started_llama
         break
       fi
@@ -230,12 +266,15 @@ start_llama_with_fallback() {
       waited=$((waited + 2))
     done
     kill_started_llama
-  done < <(gpu_layer_tiers "$avail_mb" "${LLM_GPU_LAYERS}")
+    if ((waited >= max_wait)); then
+      warn "Timed out waiting for n-gpu-layers=${ngl}"
+    fi
+  done
 
   if [[ "$tiers_ok" -eq 0 ]]; then
     err "Nemotron failed to load at all GPU/CPU tiers."
-    err "Last log ($(wc -l <"$LLAMA_LOG" 2>/dev/null || echo 0) lines): $LLAMA_LOG"
-    tail -30 "$LLAMA_LOG" >&2 || true
+    err "Log: $LLAMA_LOG"
+    tail -40 "$LLAMA_LOG" >&2 || true
     rm -f "$LLAMA_LOG"
     LLAMA_LOG=""
     return 1
@@ -335,13 +374,14 @@ else
     start_llama_with_fallback "$LLAMA_BIN" || exit 1
   else
     log "Starting Nemotron (n-gpu-layers=${LLM_GPU_LAYERS}, ctx=${LLM_CTX_SIZE})..."
+    read -ra _extra < <(llama_extra_args "$LLAMA_BIN")
     "$LLAMA_BIN" \
       -m "$ARIF_ROOT/$MODEL" \
       --host "$LLM_HOST" \
       --port "$LLM_PORT" \
       --ctx-size "$LLM_CTX_SIZE" \
       --n-gpu-layers "$LLM_GPU_LAYERS" \
-      --parallel 1 \
+      "${_extra[@]}" \
       --alias "$LLM_ALIAS" &
     LLAMA_PID=$!
     STARTED_LLAMA=1
