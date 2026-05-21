@@ -2,7 +2,14 @@
 # Start Arif: llama-server (Nemotron) + FastAPI backend in one command.
 set -euo pipefail
 
-ARIF_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Resolve real path when ~/bin/arif is a symlink (otherwise ARIF_ROOT becomes $HOME).
+_arif_script="${BASH_SOURCE[0]}"
+if command -v readlink &>/dev/null; then
+  _arif_script="$(readlink -f "$_arif_script" 2>/dev/null || echo "$_arif_script")"
+elif command -v realpath &>/dev/null; then
+  _arif_script="$(realpath "$_arif_script" 2>/dev/null || echo "$_arif_script")"
+fi
+ARIF_ROOT="$(cd "$(dirname "$_arif_script")/.." && pwd)"
 cd "$ARIF_ROOT"
 
 MODEL="${ARIF_MODEL:-models/NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf}"
@@ -113,7 +120,9 @@ esac
 
 if [[ ! -f "$ARIF_ROOT/$MODEL" ]]; then
   err "Model not found: $ARIF_ROOT/$MODEL"
-  err "Run: bash models/download_models.sh"
+  err "Repo root: $ARIF_ROOT"
+  err "Run from repo:  cd \"$ARIF_ROOT\" && bash models/download_models.sh"
+  err "Or start via:   bash \"$ARIF_ROOT/arif\""
   exit 1
 fi
 
