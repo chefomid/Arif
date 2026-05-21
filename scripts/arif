@@ -329,6 +329,16 @@ case "${1:-start}" in
     trap - EXIT INT TERM
     exit 0
     ;;
+  cleanup)
+    if [[ -f "$ARIF_ROOT/scripts/disk-cleanup.sh" ]]; then
+      bash "$ARIF_ROOT/scripts/disk-cleanup.sh" "${2:-}"
+    else
+      err "scripts/disk-cleanup.sh not found"
+      exit 1
+    fi
+    trap - EXIT INT TERM
+    exit 0
+    ;;
   logs)
     if [[ -f "$ARIF_ROOT/logs/llama-last.log" ]]; then
       less "$ARIF_ROOT/logs/llama-last.log" 2>/dev/null || cat "$ARIF_ROOT/logs/llama-last.log"
@@ -340,7 +350,7 @@ case "${1:-start}" in
     exit 0
     ;;
   *)
-    err "Usage: arif [start|stop|gpu-prep|logs]"
+    err "Usage: arif [start|stop|gpu-prep|cleanup|logs]"
     exit 1
     ;;
 esac

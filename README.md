@@ -175,6 +175,18 @@ sudo systemctl enable --now nemotron-llama arif-backend
 | `GET /api/vision/camera/mjpeg` | Live camera stream |
 | `WS /ws` | PTT, streaming chat, vision metadata (optional clients) |
 
+## Disk full (`No space left on device`)
+
+```bash
+df -h
+bash scripts/disk-cleanup.sh
+# if still full:
+bash scripts/disk-cleanup.sh --aggressive
+git pull
+```
+
+Keep one copy of the Nemotron `.gguf` under `models/`. Remove duplicate project folders (e.g. old `Arif` clones).
+
 ## Memory tips (8 GB)
 
 **Default: Nemotron on CPU** (`LLM_GPU_LAYERS=0`) — avoids CUDA OOM on Orin Nano 8GB. First load can take **3–6 minutes**; then chat works.
