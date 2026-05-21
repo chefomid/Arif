@@ -181,16 +181,33 @@ sudo systemctl enable --now nemotron-llama arif-backend
 - Use `tiny.en` Whisper first; upgrade to `base.en` if needed
 - Lower `YOLO_FPS_CAP` if OOM or thermal throttling
 
+### GPU mode on Jetson (`ARIF_ENGAGE_GPU`)
+
+By default on Jetson, `arif` runs **`scripts/jetson-gpu-prep.sh`** before Nemotron:
+
+- `sudo nvpmodel` + `jetson_clocks` (max performance)
+- Safely stops **browsers** (Chromium/Firefox), LibreOffice, extra `llama-server`, VS Code/Cursor
+- Does **not** stop GNOME, SSH, audio (mic), NetworkManager, or Arif itself
+- Drops page cache to free unified memory
+- Sets **`LLM_GPU_LAYERS=999`** unless you forced `LLM_GPU_LAYERS=0` in `.env`
+
+```bash
+arif              # prep + GPU Nemotron + backend
+arif gpu-prep     # prep only (no Arif start)
+```
+
+Disable auto prep: `ARIF_ENGAGE_GPU=false` in `.env`.
+
 ### CUDA OOM loading Nemotron (`cudaMalloc failed: out of memory`)
 
-On **Orin Nano 8GB** with the desktop running, full GPU offload often fails. In `.env`:
+If GPU load still fails after prep:
 
 ```bash
 LLM_GPU_LAYERS=0      # CPU only (reliable, slower)
 LLM_CTX_SIZE=4096
 ```
 
-Then `arif stop` and `arif`. For partial GPU after closing other apps: `LLM_GPU_LAYERS=32` … `999`.
+Then `arif stop` and `arif`. Or try partial GPU: `LLM_GPU_LAYERS=32`.
 
 ## License
 

@@ -26,9 +26,40 @@ ARIF_PORT="${ARIF_PORT:-8000}"
 LLM_ALIAS="${LLM_ALIAS:-nemotron}"
 LLM_CTX_SIZE="${LLM_CTX_SIZE:-4096}"
 
-# Default GPU layers: full offload (999) only when unset and plenty of RAM.
-# On 8GB Jetson with desktop, 999 often OOMs — use partial/CPU unless .env overrides.
-if [[ -z "${LLM_GPU_LAYERS+x}" ]]; then
+is_jetson() {
+  [[ "$(uname -m)" == "aarch64" ]] && {
+    [[ -f /etc/nv_tegra_release ]] || grep -qi nvidia /proc/device-tree/model 2>/dev/null
+  }
+}
+
+truthy() {
+  case "${1,,}" in
+    1 | true | yes | on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Default: on Jetson, free GPU and use full offload unless disabled in .env
+if [[ -z "${ARIF_ENGAGE_GPU+x}" ]]; then
+  if is_jetson; then
+    ARIF_ENGAGE_GPU=true
+  else
+    ARIF_ENGAGE_GPU=false
+  fi
+fi
+
+if truthy "$ARIF_ENGAGE_GPU" && is_jetson; then
+  if [[ -f "$ARIF_ROOT/scripts/jetson-gpu-prep.sh" ]]; then
+    bash "$ARIF_ROOT/scripts/jetson-gpu-prep.sh" || log "GPU prep had warnings (continuing)"
+  fi
+  # Use full GPU unless explicitly set to a non-zero value in .env
+  if [[ -z "${LLM_GPU_LAYERS+x}" ]]; then
+    LLM_GPU_LAYERS=999
+  elif [[ "${LLM_GPU_LAYERS}" == "0" ]]; then
+    log "ARIF_ENGAGE_GPU=true: upgrading LLM_GPU_LAYERS 0 → 999 (set ARIF_ENGAGE_GPU=false to keep CPU)"
+    LLM_GPU_LAYERS=999
+  fi
+elif [[ -z "${LLM_GPU_LAYERS+x}" ]]; then
   mem_gb="$(awk '/MemTotal:/ {printf "%d", $2/1024/1024}' /proc/meminfo 2>/dev/null || echo 0)"
   if [[ "$(uname -m)" == "aarch64" && "$mem_gb" -gt 0 && "$mem_gb" -le 9 ]]; then
     LLM_GPU_LAYERS=0
@@ -130,8 +161,18 @@ case "${1:-start}" in
     ;;
   start|"")
     ;;
+  gpu-prep)
+    if [[ -f "$ARIF_ROOT/scripts/jetson-gpu-prep.sh" ]]; then
+      bash "$ARIF_ROOT/scripts/jetson-gpu-prep.sh"
+    else
+      err "scripts/jetson-gpu-prep.sh not found"
+      exit 1
+    fi
+    trap - EXIT INT TERM
+    exit 0
+    ;;
   *)
-    err "Usage: arif [start|stop]"
+    err "Usage: arif [start|stop|gpu-prep]"
     exit 1
     ;;
 esac
@@ -177,7 +218,9 @@ else
   fi
   log "Starting Nemotron (llama-server, n-gpu-layers=${LLM_GPU_LAYERS}, ctx=${LLM_CTX_SIZE})..."
   if [[ "$LLM_GPU_LAYERS" == "0" ]]; then
-    log "CPU-only LLM (slower). For GPU: close other apps, then set LLM_GPU_LAYERS=999 in .env"
+    log "CPU-only LLM. For GPU on Jetson: ARIF_ENGAGE_GPU=true in .env (runs gpu-prep automatically)"
+  elif truthy "${ARIF_ENGAGE_GPU:-false}"; then
+    log "GPU engaged (ARIF_ENGAGE_GPU=true)"
   fi
   "$LLAMA_BIN" \
     -m "$ARIF_ROOT/$MODEL" \
