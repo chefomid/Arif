@@ -5,7 +5,7 @@ import sys
 
 from openai import OpenAI
 
-from config import ROOT, get_settings, settings_for_choice
+from config import ROOT, Settings, get_settings, settings_for_choice
 from llm_server import ensure_llama_server, find_llama_server
 
 SYSTEM = (
@@ -20,7 +20,7 @@ def _check_setup() -> None:
         sys.exit(1)
 
 
-def _prompt_model_choice() -> tuple[object, str]:
+def _prompt_model_choice() -> tuple[Settings, str]:
     settings = get_settings()
     light_path = ROOT / settings.llm_light_model_path
     heavy_path = ROOT / settings.llm_heavy_model_path
