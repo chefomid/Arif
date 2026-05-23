@@ -62,7 +62,10 @@ arif
 python chat.py
 ```
 
-First model load on 8GB Jetson (CPU) can take **3–6 minutes**. Logs: `logs/llama-last.log`.
+First model load on 8GB Jetson (CPU) can take **10–15 minutes**. You'll see `still loading…` every 30s. Logs: `logs/llama-last.log`.
+
+If it times out, check the log and increase wait time in `.env`:
+`LLM_READY_TIMEOUT_SEC=1200`
 
 Type `quit` or press Ctrl+C to exit (stops llama-server if this command started it).
 
@@ -80,6 +83,7 @@ Copy `.env.example` to `.env`:
 | `LLM_MODEL_PATH` | Nemotron GGUF path |
 | `LLM_GPU_LAYERS` | `0` = CPU-only on 8GB Jetson (default) |
 | `LLM_CTX_SIZE` | Context size (default `2048`) |
+| `LLM_READY_TIMEOUT_SEC` | Max wait for server (0 = auto, 900s on Jetson CPU) |
 
 ## License
 

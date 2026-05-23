@@ -29,11 +29,29 @@ def _llm_root(base_url: str) -> str:
     return base_url.rstrip("/").removesuffix("/v1")
 
 
+def is_jetson() -> bool:
+    try:
+        with open("/proc/device-tree/model", encoding="utf-8", errors="ignore") as f:
+            model = f.read().lower()
+        return "jetson" in model or "tegra" in model
+    except OSError:
+        return Path("/etc/nv_tegra_release").exists()
+
+
+def default_ready_timeout(gpu_layers: int) -> int:
+    """CPU Nemotron on 8GB Jetson can take well over 6 minutes."""
+    if is_jetson() and gpu_layers == 0:
+        return 900
+    if gpu_layers == 0:
+        return 600
+    return 180
+
+
 def llm_ready(base_url: str) -> bool:
     root = _llm_root(base_url)
-    for path in ("/health", "/v1/models"):
+    for path in ("/health", "/v1/models", "/"):
         try:
-            with urllib.request.urlopen(f"{root}{path}", timeout=3) as resp:
+            with urllib.request.urlopen(f"{root}{path}", timeout=5) as resp:
                 if resp.status == 200:
                     return True
         except (urllib.error.URLError, TimeoutError, OSError):
@@ -50,6 +68,13 @@ def find_llama_server() -> Path | None:
         if path.is_file() and os.access(path, os.X_OK):
             return path
     return None
+
+
+def _tail_log(log_file: Path, lines: int = 30) -> str:
+    if not log_file.is_file():
+        return "(no log file)"
+    text = log_file.read_text(encoding="utf-8", errors="replace")
+    return "\n".join(text.splitlines()[-lines:])
 
 
 def _stop_started() -> None:
@@ -72,13 +97,36 @@ def _on_signal(signum: int, _frame: object) -> None:
     raise SystemExit(128 + signum)
 
 
-def wait_for_llm(base_url: str, timeout: int) -> bool:
-    deadline = time.time() + timeout
-    while time.time() < deadline:
+def _report_failure(log_file: Path, timeout: int) -> None:
+    print("llama-server did not become ready in time.", file=sys.stderr)
+    print(f"  waited: {timeout}s", file=sys.stderr)
+    if _started is not None and _started.poll() is not None:
+        print(f"  process exited with code: {_started.returncode}", file=sys.stderr)
+    print(f"  log: {log_file}", file=sys.stderr)
+    print("  try: tail -40 logs/llama-last.log", file=sys.stderr)
+    if is_jetson():
+        print("  Jetson tip: first CPU load can take 10–15 min; set LLM_READY_TIMEOUT_SEC=1200", file=sys.stderr)
+        print("  or free RAM: close browsers, sync; check: free -h", file=sys.stderr)
+    tail = _tail_log(log_file)
+    if tail.strip():
+        print("\n--- last log lines ---", file=sys.stderr)
+        print(tail, file=sys.stderr)
+
+
+def wait_for_llm(base_url: str, timeout: int, log_file: Path) -> bool:
+    start = time.time()
+    last_progress = 0.0
+    while time.time() - start < timeout:
         if llm_ready(base_url):
             return True
         if _started is not None and _started.poll() is not None:
+            _report_failure(log_file, int(time.time() - start))
             return False
+        now = time.time()
+        if now - last_progress >= 30:
+            elapsed = int(now - start)
+            print(f"  still loading… {elapsed}s / {timeout}s", file=sys.stderr)
+            last_progress = now
         time.sleep(2)
     return False
 
@@ -114,6 +162,8 @@ def ensure_llama_server(settings: Settings | None = None) -> None:
     log_dir.mkdir(exist_ok=True)
     log_file = log_dir / "llama-last.log"
 
+    timeout = settings.llm_ready_timeout_sec or default_ready_timeout(settings.llm_gpu_layers)
+
     cmd = [
         str(llama_bin),
         "-m",
@@ -131,7 +181,9 @@ def ensure_llama_server(settings: Settings | None = None) -> None:
     ]
 
     print("Starting llama-server (first load can take several minutes) …", file=sys.stderr)
-    print(f"  log: {log_file}", file=sys.stderr)
+    print(f"  timeout: {timeout}s  log: {log_file}", file=sys.stderr)
+    if is_jetson() and settings.llm_gpu_layers == 0:
+        print("  Jetson CPU mode: be patient — 10+ minutes is normal on first load.", file=sys.stderr)
 
     with log_file.open("w", encoding="utf-8") as log:
         _started = subprocess.Popen(
@@ -146,10 +198,9 @@ def ensure_llama_server(settings: Settings | None = None) -> None:
     if hasattr(signal, "SIGTERM"):
         signal.signal(signal.SIGTERM, _on_signal)
 
-    timeout = 360 if settings.llm_gpu_layers == 0 else 180
-    if not wait_for_llm(base_url, timeout):
-        print("llama-server did not become ready in time.", file=sys.stderr)
-        print(f"Check: tail -40 {log_file}", file=sys.stderr)
+    if not wait_for_llm(base_url, timeout, log_file):
+        if _started is not None and _started.poll() is None:
+            _report_failure(log_file, timeout)
         _stop_started()
         sys.exit(1)
 

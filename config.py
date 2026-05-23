@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     llm_model_path: str = "models/NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf"
     llm_gpu_layers: int = 0
     llm_ctx_size: int = 2048
+    llm_ready_timeout_sec: int = 0  # 0 = auto (600s CPU / 180s GPU on Jetson)
 
 
 @lru_cache
