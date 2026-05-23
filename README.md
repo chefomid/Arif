@@ -5,7 +5,8 @@ Two standalone CLI tools for Jetson Orin Nano (or any PC with Python 3.11+):
 | Command | What it does |
 |---------|----------------|
 | `arif detect` | Webcam + YOLO — GUI window showing **person** detections |
-| `arif chat` | Terminal chatbot via **Nemotron** (GGUF + `llama-server`) |
+| `arif chat` | Terminal chatbot — **starts llama-server automatically**, then chats |
+| `arif` | Same as `arif chat` |
 
 No web UI, no microphone, no scene memory — just two simple features you run separately.
 
@@ -51,20 +52,19 @@ On Jetson, use a TensorRT engine for speed: set `YOLO_MODEL=models/yolo11n.engin
 
 ## 2. Terminal chat
 
-Start the LLM server first (separate terminal):
-
-```bash
-llama-server -m models/NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf \
-  --host 127.0.0.1 --port 8080 --n-gpu-layers 0 --ctx-size 2048 --alias nemotron
-```
-
-Then chat:
+One command — starts `llama-server` if needed, then opens chat:
 
 ```bash
 arif chat
+# or simply:
+arif
+# or:
+python chat.py
 ```
 
-Type `quit` or press Ctrl+C to exit.
+First model load on 8GB Jetson (CPU) can take **3–6 minutes**. Logs: `logs/llama-last.log`.
+
+Type `quit` or press Ctrl+C to exit (stops llama-server if this command started it).
 
 ## Configuration
 
@@ -77,6 +77,9 @@ Copy `.env.example` to `.env`:
 | `YOLO_CONFIDENCE` | Detection threshold (default `0.4`) |
 | `LLM_BASE_URL` | llama-server OpenAI API (default `http://127.0.0.1:8080/v1`) |
 | `LLM_MODEL` | Model alias (default `nemotron`) |
+| `LLM_MODEL_PATH` | Nemotron GGUF path |
+| `LLM_GPU_LAYERS` | `0` = CPU-only on 8GB Jetson (default) |
+| `LLM_CTX_SIZE` | Context size (default `2048`) |
 
 ## License
 

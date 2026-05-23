@@ -19,10 +19,13 @@ class Settings(BaseSettings):
     yolo_confidence: float = 0.4
     camera_device: int = 0
 
-    # LLM chat (llama-server)
+    # LLM chat (llama-server — auto-started by chat.py if not running)
     llm_base_url: str = "http://127.0.0.1:8080/v1"
     llm_model: str = "nemotron"
     llm_api_key: str = "not-needed"
+    llm_model_path: str = "models/NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf"
+    llm_gpu_layers: int = 0
+    llm_ctx_size: int = 2048
 
 
 @lru_cache

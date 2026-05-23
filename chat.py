@@ -1,4 +1,4 @@
-"""Terminal chatbot via llama-server (Nemotron GGUF)."""
+"""Terminal chatbot — starts llama-server automatically if needed."""
 from __future__ import annotations
 
 import sys
@@ -6,6 +6,7 @@ import sys
 from openai import OpenAI
 
 from config import get_settings
+from llm_server import ensure_llama_server
 
 SYSTEM = (
     "You are Arif, a helpful AI assistant running locally. "
@@ -15,21 +16,9 @@ SYSTEM = (
 
 def main() -> None:
     settings = get_settings()
-    client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+    ensure_llama_server(settings)
 
-    try:
-        client.models.list()
-    except Exception as exc:
-        print("LLM not reachable.", file=sys.stderr)
-        print(f"  URL: {settings.llm_base_url}", file=sys.stderr)
-        print("Start llama-server first, e.g.:", file=sys.stderr)
-        print(
-            "  llama-server -m models/NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf "
-            "--host 127.0.0.1 --port 8080 --n-gpu-layers 0 --alias nemotron",
-            file=sys.stderr,
-        )
-        print(f"Details: {exc}", file=sys.stderr)
-        sys.exit(1)
+    client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
 
     history: list[dict[str, str]] = [{"role": "system", "content": SYSTEM}]
     print("Arif chat — type a message (Ctrl+C or 'quit' to exit)\n")

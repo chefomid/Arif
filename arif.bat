@@ -15,6 +15,10 @@ if /I "%~1"=="chat" (
   "%PYTHON%" "%ROOT%chat.py" %2 %3 %4 %5 %6 %7 %8 %9
   exit /b %ERRORLEVEL%
 )
+if "%~1"=="" (
+  "%PYTHON%" "%ROOT%chat.py"
+  exit /b %ERRORLEVEL%
+)
 
-echo Usage: arif detect ^| arif chat
+echo Usage: arif [chat] ^| arif detect
 exit /b 1
