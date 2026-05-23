@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Download models for Arif on Jetson (run on device with network)
+# Download Nemotron GGUF + YOLO11n weights
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -37,32 +37,33 @@ fi
 
 if [[ ! -f "$SCRIPT_DIR/$NEMOTRON" ]]; then
   echo "ERROR: $NEMOTRON missing after download." >&2
-  echo "  Expected: $SCRIPT_DIR/$NEMOTRON" >&2
   exit 1
 fi
 ls -lh "$SCRIPT_DIR/$NEMOTRON"
 
-echo "==> Downloading YOLO11n (PyTorch) for TensorRT export..."
+echo "==> Downloading YOLO11n..."
+"$PY" -m pip install -q ultralytics
 "$PY" - <<'PY'
+import shutil
+from pathlib import Path
 from ultralytics import YOLO
-YOLO("yolo11n.pt")
-print("yolo11n.pt ready")
+
+dst = Path("yolo11n.pt")
+if not dst.exists():
+    m = YOLO("yolo11n.pt")
+    src = Path(getattr(m, "ckpt_path", None) or "yolo11n.pt")
+    if src.resolve() != dst.resolve() and src.exists():
+        shutil.copy2(src, dst)
+print(f"YOLO weights: {dst.resolve()}")
 PY
 
-echo "==> Export YOLO11n to TensorRT engine (Jetson GPU)..."
+echo "==> Optional: export TensorRT engine on Jetson GPU"
 if command -v yolo &>/dev/null; then
-  yolo export model=yolo11n.pt format=engine device=0 2>/dev/null || \
-    echo "WARN: TensorRT export failed – will use .pt fallback at runtime"
-else
-  echo "WARN: yolo CLI not found – skip TensorRT export"
+  yolo export model=yolo11n.pt format=engine device=0 2>/dev/null && \
+    mv -f yolo11n.engine "$SCRIPT_DIR/yolo11n.engine" 2>/dev/null || \
+    echo "WARN: TensorRT export skipped or failed — use models/yolo11n.pt"
 fi
 
-if [[ -f yolo11n.engine ]]; then
-  echo "TensorRT engine: $SCRIPT_DIR/yolo11n.engine"
-else
-  echo "Using PyTorch weights; set YOLO_MODEL=models/yolo11n.pt in .env if needed"
-fi
-
-echo "==> Whisper models download on first STT run (faster-whisper)."
-echo "Done. Nemotron: $SCRIPT_DIR/$NEMOTRON"
-echo "Start: arif   (or: bash $ARIF_ROOT/scripts/arif)"
+echo "Done."
+echo "  Detect: arif detect"
+echo "  Chat:   start llama-server, then arif chat"

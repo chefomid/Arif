@@ -2,14 +2,13 @@
 """Create venv and install Arif dependencies (Python 3.11+)."""
 from __future__ import annotations
 
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent
 VENV = ROOT / ".venv"
-REQUIREMENTS = ROOT / "backend" / "requirements.txt"
+REQUIREMENTS = ROOT / "requirements.txt"
 
 
 def main() -> None:
@@ -26,34 +25,21 @@ def main() -> None:
     )
 
     print(f"==> Using Python {sys.version.split()[0]}")
-    print("==> Creating Python virtualenv...")
+    print("==> Creating virtualenv...")
     if not venv_py.exists():
         subprocess.check_call([py, "-m", "venv", str(VENV)])
 
-    # Re-check venv interpreter (user may have old .venv from Python 3.10)
     r = subprocess.run(
         [str(venv_py), "-c", "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)"],
         capture_output=True,
     )
     if r.returncode != 0:
-        print("ERROR: Existing .venv uses Python < 3.11. Remove it and re-run setup:")
-        print(f"  {VENV}")
+        print("ERROR: .venv uses Python < 3.11. Remove .venv and re-run setup.")
         sys.exit(1)
 
-    print("==> Installing backend dependencies...")
-    subprocess.check_call([str(venv_py), "-m", "pip", "install", "--upgrade", "pip"])
-    subprocess.check_call([str(venv_py), "-m", "pip", "install", "-r", str(REQUIREMENTS)])
-
-    env_file = ROOT / ".env"
-    example = ROOT / ".env.example"
-    if not env_file.exists() and example.exists():
-        shutil.copy(example, env_file)
-        print("==> Created .env from .env.example")
-
-    print("\nSetup complete.")
-    print("  Windows:  .venv\\Scripts\\python.exe backend\\run.py")
-    print("  Linux:    source .venv/bin/activate && python backend/run.py")
-    print("  Jetson:   arif")
+    print("==> Installing dependencies...")
+    subprocess.check_call([str(venv_pip), "install", "-r", str(REQUIREMENTS)])
+    print("Done. Activate .venv then run: arif detect  or  arif chat")
 
 
 if __name__ == "__main__":

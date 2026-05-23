@@ -1,4 +1,27 @@
 #!/usr/bin/env bash
-# Wrapper so you can run: ./arif  or  bash ~/Arif/arif
+# Arif — detect (YOLO) | chat (terminal LLM)
+set -euo pipefail
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec bash "$ROOT/scripts/arif" "$@"
+cd "$ROOT"
+
+if [[ -x "$ROOT/.venv/bin/python" ]]; then
+  PYTHON="$ROOT/.venv/bin/python"
+elif command -v python3 &>/dev/null; then
+  PYTHON="python3"
+else
+  PYTHON="python"
+fi
+
+case "${1:-}" in
+  detect)
+    exec "$PYTHON" "$ROOT/detect.py" "${@:2}"
+    ;;
+  chat)
+    exec "$PYTHON" "$ROOT/chat.py" "${@:2}"
+    ;;
+  *)
+    echo "Usage: arif detect | arif chat"
+    exit 1
+    ;;
+esac
