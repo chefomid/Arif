@@ -82,8 +82,19 @@ Copy `.env.example` to `.env`:
 | `LLM_MODEL` | Model alias (default `nemotron`) |
 | `LLM_MODEL_PATH` | Nemotron GGUF path |
 | `LLM_GPU_LAYERS` | `0` = CPU-only on 8GB Jetson (default) |
-| `LLM_CTX_SIZE` | Context size (default `2048`) |
+| `LLM_CTX_SIZE` | Context size (default `1024` on 8GB Jetson) |
 | `LLM_READY_TIMEOUT_SEC` | Max wait for server (0 = auto, 900s on Jetson CPU) |
+
+### CUDA OOM on Jetson (`cudaMalloc failed`)
+
+Ensure `.env` has:
+
+```
+LLM_GPU_LAYERS=0
+LLM_CTX_SIZE=1024
+```
+
+Close browser and other apps, then retry. Arif now hides the GPU for CPU mode and auto-retries with smaller context if OOM is detected.
 
 ## License
 

@@ -22,7 +22,16 @@ LLAMA_SEARCH_PATHS = (
     "/opt/llama.cpp/llama-server",
 )
 
+OOM_MARKERS = (
+    "out of memory",
+    "cudaMalloc failed",
+    "nvmapmemalloc",
+    "failed to allocate cuda",
+    "failed to create context with model",
+)
+
 _started: subprocess.Popen | None = None
+_llama_help: str | None = None
 
 
 def _llm_root(base_url: str) -> str:
@@ -39,7 +48,6 @@ def is_jetson() -> bool:
 
 
 def default_ready_timeout(gpu_layers: int) -> int:
-    """CPU Nemotron on 8GB Jetson can take well over 6 minutes."""
     if is_jetson() and gpu_layers == 0:
         return 900
     if gpu_layers == 0:
@@ -70,11 +78,53 @@ def find_llama_server() -> Path | None:
     return None
 
 
+def _llama_help_text(llama_bin: Path) -> str:
+    global _llama_help
+    if _llama_help is None:
+        try:
+            proc = subprocess.run(
+                [str(llama_bin), "--help"],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            _llama_help = (proc.stdout or "") + (proc.stderr or "")
+        except (subprocess.SubprocessError, OSError):
+            _llama_help = ""
+    return _llama_help
+
+
+def _llama_extra_args(llama_bin: Path) -> list[str]:
+    help_text = _llama_help_text(llama_bin)
+    extra: list[str] = []
+    if "--device" in help_text:
+        extra.extend(["--device", "CPU"])
+    if "--parallel" in help_text:
+        extra.extend(["--parallel", "1"])
+    return extra
+
+
+def _subprocess_env(gpu_layers: int) -> dict[str, str]:
+    env = os.environ.copy()
+    if gpu_layers == 0:
+        # Hide GPU so CUDA-built llama.cpp stays on CPU (fixes Jetson OOM).
+        env["CUDA_VISIBLE_DEVICES"] = "-1"
+        env["GGML_CUDA"] = "0"
+    return env
+
+
 def _tail_log(log_file: Path, lines: int = 30) -> str:
     if not log_file.is_file():
         return "(no log file)"
     text = log_file.read_text(encoding="utf-8", errors="replace")
     return "\n".join(text.splitlines()[-lines:])
+
+
+def _log_indicates_oom(log_file: Path) -> bool:
+    if not log_file.is_file():
+        return False
+    text = _tail_log(log_file, lines=80).lower()
+    return any(marker in text for marker in OOM_MARKERS)
 
 
 def _stop_started() -> None:
@@ -97,16 +147,17 @@ def _on_signal(signum: int, _frame: object) -> None:
     raise SystemExit(128 + signum)
 
 
-def _report_failure(log_file: Path, timeout: int) -> None:
-    print("llama-server did not become ready in time.", file=sys.stderr)
+def _report_failure(log_file: Path, timeout: int, reason: str = "") -> None:
+    print(reason or "llama-server did not become ready in time.", file=sys.stderr)
     print(f"  waited: {timeout}s", file=sys.stderr)
     if _started is not None and _started.poll() is not None:
         print(f"  process exited with code: {_started.returncode}", file=sys.stderr)
     print(f"  log: {log_file}", file=sys.stderr)
-    print("  try: tail -40 logs/llama-last.log", file=sys.stderr)
+    if _log_indicates_oom(log_file):
+        print("  CUDA/RAM OOM detected — close other apps; use LLM_GPU_LAYERS=0", file=sys.stderr)
+        print("  and try LLM_CTX_SIZE=1024 in .env", file=sys.stderr)
     if is_jetson():
-        print("  Jetson tip: first CPU load can take 10–15 min; set LLM_READY_TIMEOUT_SEC=1200", file=sys.stderr)
-        print("  or free RAM: close browsers, sync; check: free -h", file=sys.stderr)
+        print("  Jetson: free RAM with 'free -h'; close browser/desktop apps.", file=sys.stderr)
     tail = _tail_log(log_file)
     if tail.strip():
         print("\n--- last log lines ---", file=sys.stderr)
@@ -120,7 +171,8 @@ def wait_for_llm(base_url: str, timeout: int, log_file: Path) -> bool:
         if llm_ready(base_url):
             return True
         if _started is not None and _started.poll() is not None:
-            _report_failure(log_file, int(time.time() - start))
+            return False
+        if _log_indicates_oom(log_file):
             return False
         now = time.time()
         if now - last_progress >= 30:
@@ -131,10 +183,54 @@ def wait_for_llm(base_url: str, timeout: int, log_file: Path) -> bool:
     return False
 
 
-def ensure_llama_server(settings: Settings | None = None) -> None:
-    """Reuse running server or start llama-server and register cleanup."""
+def _ctx_tiers(requested: int) -> list[int]:
+    tiers: list[int] = []
+    for size in (requested, 1024, 512):
+        if size not in tiers and size > 0:
+            tiers.append(size)
+    return tiers
+
+
+def _launch_llama(
+    llama_bin: Path,
+    settings: Settings,
+    host: str,
+    port: int,
+    ctx_size: int,
+    log_file: Path,
+) -> None:
     global _started
 
+    cmd = [
+        str(llama_bin),
+        "-m",
+        str(ROOT / settings.llm_model_path),
+        "--host",
+        host,
+        "--port",
+        str(port),
+        "--ctx-size",
+        str(ctx_size),
+        "--n-gpu-layers",
+        str(settings.llm_gpu_layers),
+        *_llama_extra_args(llama_bin),
+        "--alias",
+        settings.llm_model,
+    ]
+
+    env = _subprocess_env(settings.llm_gpu_layers)
+    with log_file.open("w", encoding="utf-8") as log:
+        _started = subprocess.Popen(
+            cmd,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            cwd=ROOT,
+            env=env,
+        )
+
+
+def ensure_llama_server(settings: Settings | None = None) -> None:
+    """Reuse running server or start llama-server and register cleanup."""
     settings = settings or get_settings()
     base_url = settings.llm_base_url
 
@@ -163,45 +259,48 @@ def ensure_llama_server(settings: Settings | None = None) -> None:
     log_file = log_dir / "llama-last.log"
 
     timeout = settings.llm_ready_timeout_sec or default_ready_timeout(settings.llm_gpu_layers)
-
-    cmd = [
-        str(llama_bin),
-        "-m",
-        str(model_path),
-        "--host",
-        host,
-        "--port",
-        str(port),
-        "--ctx-size",
-        str(settings.llm_ctx_size),
-        "--n-gpu-layers",
-        str(settings.llm_gpu_layers),
-        "--alias",
-        settings.llm_model,
-    ]
-
-    print("Starting llama-server (first load can take several minutes) …", file=sys.stderr)
-    print(f"  timeout: {timeout}s  log: {log_file}", file=sys.stderr)
-    if is_jetson() and settings.llm_gpu_layers == 0:
-        print("  Jetson CPU mode: be patient — 10+ minutes is normal on first load.", file=sys.stderr)
-
-    with log_file.open("w", encoding="utf-8") as log:
-        _started = subprocess.Popen(
-            cmd,
-            stdout=log,
-            stderr=subprocess.STDOUT,
-            cwd=ROOT,
-        )
+    ctx_sizes = _ctx_tiers(settings.llm_ctx_size)
 
     atexit.register(_stop_started)
     signal.signal(signal.SIGINT, _on_signal)
     if hasattr(signal, "SIGTERM"):
         signal.signal(signal.SIGTERM, _on_signal)
 
-    if not wait_for_llm(base_url, timeout, log_file):
-        if _started is not None and _started.poll() is None:
-            _report_failure(log_file, timeout)
+    for attempt, ctx_size in enumerate(ctx_sizes, start=1):
         _stop_started()
-        sys.exit(1)
+        if attempt > 1:
+            print(f"Retrying with smaller context (ctx={ctx_size}) …", file=sys.stderr)
 
-    print("llama-server ready.", file=sys.stderr)
+        print("Starting llama-server (first load can take several minutes) …", file=sys.stderr)
+        print(
+            f"  ctx={ctx_size}  n-gpu-layers={settings.llm_gpu_layers}  "
+            f"cpu-only={'yes' if settings.llm_gpu_layers == 0 else 'no'}",
+            file=sys.stderr,
+        )
+        print(f"  timeout: {timeout}s  log: {log_file}", file=sys.stderr)
+        if is_jetson() and settings.llm_gpu_layers == 0:
+            print("  Jetson: CUDA hidden — pure CPU mode to avoid OOM.", file=sys.stderr)
+
+        _launch_llama(llama_bin, settings, host, port, ctx_size, log_file)
+
+        if wait_for_llm(base_url, timeout, log_file):
+            print("llama-server ready.", file=sys.stderr)
+            return
+
+        oom = _log_indicates_oom(log_file)
+        crashed = _started is not None and _started.poll() is not None
+        if oom and attempt < len(ctx_sizes):
+            print("OOM during load — trying smaller context …", file=sys.stderr)
+            continue
+        if crashed or oom:
+            _report_failure(
+                log_file,
+                timeout,
+                reason="llama-server failed to start (see log).",
+            )
+            _stop_started()
+            sys.exit(1)
+
+    _report_failure(log_file, timeout)
+    _stop_started()
+    sys.exit(1)
