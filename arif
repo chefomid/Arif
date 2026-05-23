@@ -17,11 +17,14 @@ case "${1:-chat}" in
   detect)
     exec "$PYTHON" "$ROOT/detect.py" "${@:2}"
     ;;
+  see)
+    exec "$PYTHON" "$ROOT/see.py" "${@:2}"
+    ;;
   chat|"")
     exec "$PYTHON" "$ROOT/chat.py" "${@:2}"
     ;;
   *)
-    echo "Usage: arif [chat] | arif detect"
+    echo "Usage: arif [chat] | arif detect | arif see"
     exit 1
     ;;
 esac

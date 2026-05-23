@@ -1,14 +1,15 @@
 # Arif
 
-Two standalone CLI tools for Jetson Orin Nano (or any PC with Python 3.11+):
+Three standalone CLI tools for Jetson Orin Nano (or any PC with Python 3.11+):
 
 | Command | What it does |
 |---------|----------------|
 | `arif detect` | YOLO person detection + **stereo distance (m)** on ELP camera |
 | `arif chat` | Terminal chat — pick **1=light (fast)** or **2=heavy (Nemotron)** |
+| `arif see` | **Chat + live camera** — ask "can you see me?" |
 | `arif` | Same as `arif chat` |
 
-No web UI, no microphone, no scene memory — just two simple features you run separately.
+No web UI — three features you run separately.
 
 ## Setup
 
@@ -90,6 +91,23 @@ Type 1 or 2 and press Enter:
 - **2 (heavy)** — Nemotron 4B, slower load (~10–15 min) but better answers
 
 Logs: `logs/llama-last.log`. Type `quit` or Ctrl+C to exit.
+
+## 3. See + chat (vision + dialogue)
+
+```bash
+arif see
+```
+
+Starts the camera in the background, then chat. Pick model **1 (light recommended)**.
+
+Try asking:
+- "Can you see me?"
+- "How far away am I?"
+- "Is anyone there?"
+
+Arif answers from **live YOLO detections** — yes if a person is in frame, with distance when stereo is calibrated.
+
+**Tip on 8GB Jetson:** use model **1**, `yolo11n.engine`, and close other apps. Don't run `detect` and `see` at the same time.
 
 ## Configuration
 
