@@ -17,7 +17,16 @@ class Settings(BaseSettings):
     # YOLO detection
     yolo_model: str = "models/yolo11n.pt"
     yolo_confidence: float = 0.4
+    yolo_imgsz: int = 416
+    yolo_frame_skip: int = 2
     camera_device: int = 0
+    camera_width: int = 1600
+    camera_height: int = 600
+    camera_stereo: bool = True
+    stereo_baseline_m: float = 0.06
+    stereo_focal_px: float = 500.0
+    stereo_max_distance_m: float = 10.0
+    stereo_frame_skip: int = 2
 
     # LLM chat — light (fast) vs heavy (Nemotron)
     llm_base_url: str = "http://127.0.0.1:8080/v1"

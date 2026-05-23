@@ -4,7 +4,7 @@ Two standalone CLI tools for Jetson Orin Nano (or any PC with Python 3.11+):
 
 | Command | What it does |
 |---------|----------------|
-| `arif detect` | Webcam + YOLO — GUI window showing **person** detections |
+| `arif detect` | YOLO person detection + **stereo distance (m)** on ELP camera |
 | `arif chat` | Terminal chat — pick **1=light (fast)** or **2=heavy (Nemotron)** |
 | `arif` | Same as `arif chat` |
 
@@ -34,21 +34,39 @@ copy .env.example .env
 bash scripts/install-llama-server.sh
 ```
 
-## 1. Person detection (YOLO)
+## 1. Person detection + distance (YOLO + stereo)
 
 ```bash
 arif detect
 ```
 
-Opens an OpenCV window. Press **Q** to quit.
+- Detects **person** on the **left** lens of a side-by-side stereo camera
+- Shows distance in meters on each box (e.g. `person 85% 2.3m`)
+- Auto-uses `yolo11n.engine` if present (faster on Jetson)
+- Press **Q** to quit
 
-Options:
+**Faster on Jetson:**
 
 ```bash
-arif detect --camera 0 --model models/yolo11n.pt --conf 0.4
+cd models && yolo export model=yolo11n.pt format=engine device=0
+# .env: YOLO_MODEL=models/yolo11n.engine
+sudo jetson_clocks
 ```
 
-On Jetson, use a TensorRT engine for speed: set `YOLO_MODEL=models/yolo11n.engine` in `.env`.
+**Tune stereo in `.env`** (ELP ~60mm baseline is a starting point):
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `CAMERA_STEREO` | `true` | Split frame left/right |
+| `STEREO_BASELINE_M` | `0.06` | Lens spacing (meters) |
+| `STEREO_FOCAL_PX` | `500` | Focal length in pixels (calibrate for accuracy) |
+| `YOLO_IMGSZ` | `416` | Smaller = faster |
+| `YOLO_FRAME_SKIP` | `2` | Run YOLO every N frames |
+
+```bash
+arif detect --camera 0 --imgsz 320 --skip 3
+arif detect --no-stereo   # YOLO only, no distance
+```
 
 ## 2. Terminal chat
 
@@ -79,8 +97,11 @@ Copy `.env.example` to `.env`:
 
 | Variable | Description |
 |----------|-------------|
-| `YOLO_MODEL` | YOLO weights (`.pt` or `.engine`) |
-| `CAMERA_DEVICE` | Webcam index (default `0`) |
+| `YOLO_MODEL` | YOLO weights (auto-picks `.engine` if next to `.pt`) |
+| `CAMERA_DEVICE` / `CAMERA_WIDTH` / `CAMERA_HEIGHT` | ELP stereo defaults `0`, `1600`, `600` |
+| `CAMERA_STEREO` | Side-by-side depth (default `true`) |
+| `STEREO_BASELINE_M` / `STEREO_FOCAL_PX` | Depth calibration |
+| `YOLO_IMGSZ` / `YOLO_FRAME_SKIP` | Speed tuning |
 | `YOLO_CONFIDENCE` | Detection threshold (default `0.4`) |
 | `LLM_BASE_URL` | llama-server OpenAI API (default `http://127.0.0.1:8080/v1`) |
 | `LLM_LIGHT_MODEL_PATH` | Fast model GGUF (default Qwen 0.5B) |
