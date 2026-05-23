@@ -19,16 +19,45 @@ class Settings(BaseSettings):
     yolo_confidence: float = 0.4
     camera_device: int = 0
 
-    # LLM chat (llama-server — auto-started by chat.py if not running)
+    # LLM chat — light (fast) vs heavy (Nemotron)
     llm_base_url: str = "http://127.0.0.1:8080/v1"
-    llm_model: str = "nemotron"
     llm_api_key: str = "not-needed"
-    llm_model_path: str = "models/NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf"
     llm_gpu_layers: int = 0
-    llm_ctx_size: int = 1024
-    llm_ready_timeout_sec: int = 0  # 0 = auto (900s CPU on Jetson)
+    llm_ready_timeout_sec: int = 0  # 0 = auto
+
+    llm_light_model_path: str = "models/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+    llm_light_model: str = "light"
+    llm_light_ctx_size: int = 512
+
+    llm_heavy_model_path: str = "models/NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf"
+    llm_heavy_model: str = "nemotron"
+    llm_heavy_ctx_size: int = 1024
+
+    # Active model (set by chat.py after user picks 1 or 2)
+    llm_model_path: str = "models/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+    llm_model: str = "light"
+    llm_ctx_size: int = 512
 
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def settings_for_choice(settings: Settings, choice: str) -> tuple[Settings, str]:
+    """Return settings configured for light (1) or heavy (2) model."""
+    if choice == "2":
+        return settings.model_copy(
+            update={
+                "llm_model_path": settings.llm_heavy_model_path,
+                "llm_model": settings.llm_heavy_model,
+                "llm_ctx_size": settings.llm_heavy_ctx_size,
+            }
+        ), "heavy (Nemotron 4B)"
+    return settings.model_copy(
+        update={
+            "llm_model_path": settings.llm_light_model_path,
+            "llm_model": settings.llm_light_model,
+            "llm_ctx_size": settings.llm_light_ctx_size,
+        }
+    ), "light (Qwen 0.5B)"

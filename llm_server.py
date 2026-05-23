@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import atexit
+import json
 import os
 import shutil
 import signal
@@ -52,12 +53,42 @@ def is_jetson() -> bool:
         return Path("/etc/nv_tegra_release").exists()
 
 
-def default_ready_timeout(gpu_layers: int) -> int:
+def _is_light_model(model_path: str) -> bool:
+    name = model_path.lower()
+    return any(x in name for x in ("0.5b", "360m", "tiny", "smollm", "1b-instruct"))
+
+
+def default_ready_timeout(gpu_layers: int, model_path: str) -> int:
+    if _is_light_model(model_path):
+        return 300 if is_jetson() else 120
     if is_jetson() and gpu_layers == 0:
         return 900
     if gpu_layers == 0:
         return 600
     return 180
+
+
+def loaded_model_ids(base_url: str) -> list[str]:
+    try:
+        with urllib.request.urlopen(f"{_llm_root(base_url)}/v1/models", timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+        return [m.get("id", "") for m in data.get("data", []) if m.get("id")]
+    except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError, ValueError):
+        return []
+
+
+def stop_llama_server(port: int = 8080) -> None:
+    """Stop llama-server we started, or any instance on this port."""
+    _stop_started()
+    subprocess.run(
+        ["pkill", "-f", f"llama-server.*--port {port}"],
+        capture_output=True,
+    )
+    subprocess.run(
+        ["pkill", "-f", f"llama-server.*{port}"],
+        capture_output=True,
+    )
+    time.sleep(1)
 
 
 def llm_ready(base_url: str) -> bool:
@@ -200,13 +231,15 @@ def _launch_llama(
     ctx_size: int,
     log_file: Path,
     hide_cuda: bool,
+    model_path: Path,
+    model_alias: str,
 ) -> None:
     global _started
 
     cmd = [
         str(llama_bin),
         "-m",
-        str(ROOT / settings.llm_model_path),
+        str(model_path),
         "--host",
         host,
         "--port",
@@ -217,7 +250,7 @@ def _launch_llama(
         str(settings.llm_gpu_layers),
         *_llama_extra_args(llama_bin),
         "--alias",
-        settings.llm_model,
+        model_alias,
     ]
 
     env = _subprocess_env(settings.llm_gpu_layers, hide_cuda)
@@ -232,13 +265,20 @@ def _launch_llama(
 
 
 def ensure_llama_server(settings: Settings | None = None) -> None:
-    """Reuse running server or start llama-server and register cleanup."""
+    """Reuse running server with the right model, or start llama-server."""
     settings = settings or get_settings()
     base_url = settings.llm_base_url
+    model_path = ROOT / settings.llm_model_path
+    model_alias = settings.llm_model
 
     if llm_ready(base_url):
-        print("Using llama-server already running.", file=sys.stderr)
-        return
+        loaded = loaded_model_ids(base_url)
+        if model_alias in loaded:
+            print(f"Using llama-server ({model_alias}).", file=sys.stderr)
+            return
+        print(f"Switching model to {model_alias} — restarting server …", file=sys.stderr)
+        parsed = urlparse(base_url)
+        stop_llama_server(parsed.port or 8080)
 
     llama_bin = find_llama_server()
     if llama_bin is None:
@@ -246,7 +286,6 @@ def ensure_llama_server(settings: Settings | None = None) -> None:
         print("Install on Jetson: bash scripts/install-llama-server.sh", file=sys.stderr)
         sys.exit(1)
 
-    model_path = ROOT / settings.llm_model_path
     if not model_path.is_file():
         print(f"Model not found: {model_path}", file=sys.stderr)
         print("Run: bash models/download_models.sh", file=sys.stderr)
@@ -260,7 +299,9 @@ def ensure_llama_server(settings: Settings | None = None) -> None:
     log_dir.mkdir(exist_ok=True)
     log_file = log_dir / "llama-last.log"
 
-    timeout = settings.llm_ready_timeout_sec or default_ready_timeout(settings.llm_gpu_layers)
+    timeout = settings.llm_ready_timeout_sec or default_ready_timeout(
+        settings.llm_gpu_layers, settings.llm_model_path
+    )
     ctx_sizes = _ctx_tiers(settings.llm_ctx_size)
     hide_cuda_options = (False, True) if settings.llm_gpu_layers == 0 else (False,)
 
@@ -269,6 +310,9 @@ def ensure_llama_server(settings: Settings | None = None) -> None:
     if hasattr(signal, "SIGTERM"):
         signal.signal(signal.SIGTERM, _on_signal)
 
+    label = "light" if _is_light_model(settings.llm_model_path) else "heavy"
+    print(f"Loading {label} model: {model_path.name}", file=sys.stderr)
+
     for hide_cuda in hide_cuda_options:
         for attempt, ctx_size in enumerate(ctx_sizes, start=1):
             _stop_started()
@@ -276,15 +320,26 @@ def ensure_llama_server(settings: Settings | None = None) -> None:
             if attempt > 1 or hide_cuda:
                 print(f"Retrying llama-server ({mode}, ctx={ctx_size}) …", file=sys.stderr)
             else:
-                print("Starting llama-server (first load can take several minutes) …", file=sys.stderr)
+                wait_hint = "1–3 min" if _is_light_model(settings.llm_model_path) else "several minutes"
+                print(f"Starting llama-server (first load can take {wait_hint}) …", file=sys.stderr)
 
             print(
-                f"  ctx={ctx_size}  n-gpu-layers={settings.llm_gpu_layers}  mode={mode}",
+                f"  model={model_alias}  ctx={ctx_size}  n-gpu-layers={settings.llm_gpu_layers}  mode={mode}",
                 file=sys.stderr,
             )
             print(f"  timeout: {timeout}s  log: {log_file}", file=sys.stderr)
 
-            _launch_llama(llama_bin, settings, host, port, ctx_size, log_file, hide_cuda)
+            _launch_llama(
+                llama_bin,
+                settings,
+                host,
+                port,
+                ctx_size,
+                log_file,
+                hide_cuda,
+                model_path,
+                model_alias,
+            )
 
             if wait_for_llm(base_url, timeout, log_file):
                 print("llama-server ready.", file=sys.stderr)

@@ -7,6 +7,7 @@ cd "$SCRIPT_DIR"
 ARIF_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 NEMOTRON="NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf"
+LIGHT="qwen2.5-0.5b-instruct-q4_k_m.gguf"
 
 pick_python() {
   if [[ -x "$ARIF_ROOT/.venv/bin/python" ]]; then
@@ -41,6 +42,25 @@ if [[ ! -f "$SCRIPT_DIR/$NEMOTRON" ]]; then
 fi
 ls -lh "$SCRIPT_DIR/$NEMOTRON"
 
+echo "==> Downloading light chat model (Qwen2.5 0.5B Q4_K_M)..."
+if [[ ! -f "$LIGHT" ]]; then
+  "$PY" -m pip install -q huggingface_hub
+  "$PY" - <<'PY'
+from huggingface_hub import hf_hub_download
+path = hf_hub_download(
+    repo_id="Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+    filename="qwen2.5-0.5b-instruct-q4_k_m.gguf",
+    local_dir=".",
+)
+print(f"Downloaded: {path}")
+PY
+fi
+if [[ ! -f "$SCRIPT_DIR/$LIGHT" ]]; then
+  echo "ERROR: $LIGHT missing after download." >&2
+  exit 1
+fi
+ls -lh "$SCRIPT_DIR/$LIGHT"
+
 echo "==> Downloading YOLO11n..."
 "$PY" -m pip install -q ultralytics
 "$PY" - <<'PY'
@@ -66,4 +86,4 @@ fi
 
 echo "Done."
 echo "  Detect: arif detect"
-echo "  Chat:   start llama-server, then arif chat"
+echo "  Chat:   arif chat   (pick 1=light fast, 2=heavy Nemotron)"

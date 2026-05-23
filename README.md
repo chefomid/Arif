@@ -5,7 +5,7 @@ Two standalone CLI tools for Jetson Orin Nano (or any PC with Python 3.11+):
 | Command | What it does |
 |---------|----------------|
 | `arif detect` | Webcam + YOLO — GUI window showing **person** detections |
-| `arif chat` | Terminal chatbot — **starts llama-server automatically**, then chats |
+| `arif chat` | Terminal chat — pick **1=light (fast)** or **2=heavy (Nemotron)** |
 | `arif` | Same as `arif chat` |
 
 No web UI, no microphone, no scene memory — just two simple features you run separately.
@@ -52,22 +52,26 @@ On Jetson, use a TensorRT engine for speed: set `YOLO_MODEL=models/yolo11n.engin
 
 ## 2. Terminal chat
 
-One command — starts `llama-server` if needed, then opens chat:
-
 ```bash
 arif chat
-# or simply:
-arif
-# or:
-python chat.py
 ```
 
-First model load on 8GB Jetson (CPU) can take **10–15 minutes**. You'll see `still loading…` every 30s. Logs: `logs/llama-last.log`.
+You'll see:
 
-If it times out, check the log and increase wait time in `.env`:
-`LLM_READY_TIMEOUT_SEC=1200`
+```
+Arif is online.
 
-Type `quit` or press Ctrl+C to exit (stops llama-server if this command started it).
+Choose model:
+  1 = Light  — fast replies (Qwen 0.5B)
+  2 = Heavy  — better quality (Nemotron 4B)
+
+Type 1 or 2 and press Enter:
+```
+
+- **1 (light)** — loads in ~1–3 min, faster replies (good default on 8GB Jetson)
+- **2 (heavy)** — Nemotron 4B, slower load (~10–15 min) but better answers
+
+Logs: `logs/llama-last.log`. Type `quit` or Ctrl+C to exit.
 
 ## Configuration
 
@@ -79,22 +83,15 @@ Copy `.env.example` to `.env`:
 | `CAMERA_DEVICE` | Webcam index (default `0`) |
 | `YOLO_CONFIDENCE` | Detection threshold (default `0.4`) |
 | `LLM_BASE_URL` | llama-server OpenAI API (default `http://127.0.0.1:8080/v1`) |
-| `LLM_MODEL` | Model alias (default `nemotron`) |
-| `LLM_MODEL_PATH` | Nemotron GGUF path |
+| `LLM_LIGHT_MODEL_PATH` | Fast model GGUF (default Qwen 0.5B) |
+| `LLM_HEAVY_MODEL_PATH` | Nemotron GGUF |
 | `LLM_GPU_LAYERS` | `0` = CPU-only on 8GB Jetson (default) |
-| `LLM_CTX_SIZE` | Context size (default `1024` on 8GB Jetson) |
-| `LLM_READY_TIMEOUT_SEC` | Max wait for server (0 = auto, 900s on Jetson CPU) |
+| `LLM_LIGHT_CTX_SIZE` / `LLM_HEAVY_CTX_SIZE` | Context per model (512 / 1024) |
+| `LLM_READY_TIMEOUT_SEC` | Max wait (0 = auto) |
 
 ### CUDA OOM on Jetson (`cudaMalloc failed`)
 
-Ensure `.env` has:
-
-```
-LLM_GPU_LAYERS=0
-LLM_CTX_SIZE=1024
-```
-
-Close browser and other apps, then retry. Arif now hides the GPU for CPU mode and auto-retries with smaller context if OOM is detected.
+Ensure `.env` has `LLM_GPU_LAYERS=0`. Close browser and other apps, then retry with **1 (light)** first.
 
 ## License
 
